@@ -411,9 +411,7 @@ export default function App() {
   return (
     <div className="app-wrapper">
       {popup.show && (
-        <div style={popupStyles} className="custom-popup-modern">
-          {popup.msg}
-        </div>
+        <div className={`custom-popup-modern ${popup.tipo}`}>{popup.msg}</div>
       )}
 
       <header className="glass-header">
@@ -657,7 +655,7 @@ export default function App() {
                           ? "✔ CHECK-IN FEITO"
                           : loadingCheckIn
                             ? "PROCESSANDO..."
-                            : "CHECK-IN REALIZADO"}
+                            : "FAZER CHECK-IN"}
                       </button>
 
                       <button
