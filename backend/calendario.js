@@ -42,7 +42,7 @@ const JANELAS_POR_TURNO = {
   },
 };
 
-/*const DIAS_TRES_VEZES_SEMANA = [1, 3, 5]; // Seg, Qua, Sex
+const DIAS_TRES_VEZES_SEMANA = [1, 3, 5]; // Seg, Qua, Sex
 const DIAS_SEG_A_SEX = [1, 2, 3, 4, 5];
 const DIAS_SOMENTE_SEGUNDA = [1];
 
@@ -57,7 +57,7 @@ const FORMACOES = [
   { id: "fullcycle_pres_noite", nome: "FullCycle — Presencial noite (3x/semana, 18h às 22h)",     curso: "fullcycle", modalidade: "presencial", turno: "noite", dias: DIAS_TRES_VEZES_SEMANA },
 ];
 
-const IDS_FORMACOES = FORMACOES.map((f) => f.id);*/
+const IDS_FORMACOES = FORMACOES.map((f) => f.id);
 
 /* -------------------------------------------------------------------------- */
 
