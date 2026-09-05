@@ -176,7 +176,7 @@ export default function App() {
         isDiaDeAula: true,
         podeCheckIn: true,
         podeCheckOut: true,
-        diasCorretos: "Todos os dias (modo teste)",
+        diasCorretos: "Confira no Portal do Aluno os dias de aula da sua turma",
         rotuloCheckIn: "liberado",
         rotuloCheckOut: "liberado",
       };
