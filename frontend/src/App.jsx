@@ -574,8 +574,7 @@ export default function App() {
                   background: "rgba(245, 158, 11, 0.12)",
                 }}
               >
-                MODO TESTE — janela de ponto aberta. Check-in e check-out estão
-                liberados em qualquer dia e horário.
+                Clique em "FAZER CHECK-IN" e aguarde alguns segundos para registrar sua presença na aula de hoje. Na hora do check-out, clique em "CHECK-OUT" e avalie sua experiência na aula.
               </div>
             ) : (
               <div className="info-banner" style={{ margin: "15px 0" }}>
