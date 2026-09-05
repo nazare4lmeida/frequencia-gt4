@@ -178,8 +178,7 @@ const TEST_LOCATION_LNG = Number(process.env.TEST_LOCATION_LNG);
 if (
   EXIGIR_LOCALIZACAO &&
   (!Number.isFinite(CLASSROOM_LAT) || !Number.isFinite(CLASSROOM_LNG))
-) {
-  // eslint-disable-line
+) {  // eslint-disable-line
   console.warn(
     "AVISO: EXIGIR_LOCALIZACAO está ligado mas CLASSROOM_LAT/CLASSROOM_LNG " +
       "não estão configurados. O check-in presencial vai falhar. " +
@@ -187,9 +186,20 @@ if (
   );
 }
 
-const validarLocalCheckin = (latitude, longitude) => {
-  if (!Number.isFinite(CLASSROOM_LAT) || !Number.isFinite(CLASSROOM_LNG)) {
-    throw new Error("Local da sala não configurado no servidor.");
+const validarLocalCheckin = (latitude, longitude, turma = null) => {
+  // Coordenadas-alvo: as da SEDE da turma (se houver); senao, o antigo
+  // CLASSROOM_LAT/LNG global (compatibilidade).
+  const alvoLat = turma?.local?.latitude ?? CLASSROOM_LAT;
+  const alvoLng = turma?.local?.longitude ?? CLASSROOM_LNG;
+  const raio =
+    Number.isFinite(Number(turma?.local?.raio)) && turma?.local?.raio > 0
+      ? Number(turma.local.raio)
+      : CHECKIN_RADIUS_METERS;
+
+  if (!Number.isFinite(alvoLat) || !Number.isFinite(alvoLng)) {
+    throw new Error(
+      "Local da sede não configurado. Preencha as coordenadas da turma.",
+    );
   }
 
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -203,11 +213,11 @@ const validarLocalCheckin = (latitude, longitude) => {
   const distanciaSala = calcularDistanciaMetros(
     latitude,
     longitude,
-    CLASSROOM_LAT,
-    CLASSROOM_LNG,
+    alvoLat,
+    alvoLng,
   );
 
-  const dentroSala = distanciaSala <= CHECKIN_RADIUS_METERS;
+  const dentroSala = distanciaSala <= raio;
 
   let distanciaTeste = null;
   let dentroTeste = false;
@@ -223,7 +233,7 @@ const validarLocalCheckin = (latitude, longitude) => {
       TEST_LOCATION_LNG,
     );
 
-    dentroTeste = distanciaTeste <= CHECKIN_RADIUS_METERS;
+    dentroTeste = distanciaTeste <= raio;
   }
 
   return {
@@ -271,7 +281,7 @@ app.post("/api/login", async (req, res) => {
       { expiresIn: "720h" },
     );
     return res.json({
-      nome: "Admin",
+      nome: "Administrador",
       role: "admin",
       email: emailFormatado,
       token,
@@ -382,6 +392,7 @@ app.put("/api/aluno/perfil", verificarToken, async (req, res) => {
 // REGISTRAR PONTO - PROTEGIDA
 // ==========================================
 app.post("/api/ponto", verificarToken, async (req, res) => {
+
   try {
     const { aluno_id, nota, revisao, latitude, longitude } = req.body;
 
@@ -446,12 +457,38 @@ app.post("/api/ponto", verificarToken, async (req, res) => {
         return res.status(403).json({ error: janelaCheckIn.motivo });
       }
 
-      // Turmas online não têm endereço de aula. E a coordenação pode
-      // desligar a conferência de GPS para todo mundo via EXIGIR_LOCALIZACAO.
+      // CHAMADA POR QR: se a turma exige QR, o aluno precisa enviar um qr_token
+      // valido (o token atual, nao expirado) da sessao de hoje daquela turma.
+      const turmaQr = await supabase
+        .from("turmas").select("exige_qr").eq("id", formacaoAluno).maybeSingle();
+      if (turmaQr?.data?.exige_qr) {
+        const qrToken = (req.body.qr_token || "").toString().trim();
+        if (!qrToken) {
+          return res.status(403).json({ error: "Escaneie o QR code da chamada para marcar presenca." });
+        }
+        const { data: sessQr } = await supabase
+          .from("qr_sessoes").select("token, token_expira")
+          .eq("turma_id", formacaoAluno).eq("data", hoje).maybeSingle();
+        const valido = sessQr && sessQr.token === qrToken &&
+          new Date(sessQr.token_expira).getTime() + 10000 >= Date.now(); // 10s de folga
+        if (!valido) {
+          return res.status(403).json({ error: "QR code expirado. Escaneie o QR atual mostrado pelo professor." });
+        }
+      }
+
+      // Turmas online não têm endereço de aula. Para presenciais, o GPS é
+      // exigido quando a turma tem coordenadas de sede E está com exige_local
+      // ligado (por turma). Mantém o override global antigo por compatibilidade.
+      const turmaAluno = cronogramaDb.getTurma(cronograma, formacaoAluno);
+      const temCoordSede =
+        Number.isFinite(turmaAluno?.local?.latitude) &&
+        Number.isFinite(turmaAluno?.local?.longitude);
       const exigeLocalizacao =
-        (EXIGIR_LOCALIZACAO || cronogramaDb.exigeLocalizacao(cronograma)) &&
-        cronogramaDb.getTurma(cronograma, formacaoAluno)?.modalidade ===
-          "presencial";
+        turmaAluno?.modalidade === "presencial" &&
+        temCoordSede &&
+        (turmaAluno?.local?.exige === true ||
+          EXIGIR_LOCALIZACAO ||
+          cronogramaDb.exigeLocalizacao(cronograma));
 
       if (!exigeLocalizacao) {
         const { data: novoPontoOnline, error: insErroOnline } = await supabase
@@ -495,11 +532,17 @@ app.post("/api/ponto", verificarToken, async (req, res) => {
         });
       }
 
-      const validacaoLocal = validarLocalCheckin(latitudeNum, longitudeNum);
+      const validacaoLocal = validarLocalCheckin(
+        latitudeNum,
+        longitudeNum,
+        turmaAluno,
+      );
 
       if (!validacaoLocal.ok) {
         return res.status(403).json({
-          error: "Check-in permitido somente no endereço da aula.",
+          error:
+            "Check-in permitido somente na sede da sua turma" +
+            (turmaAluno?.sede ? " (" + turmaAluno.sede + ")." : "."),
           distancia: validacaoLocal.distancia,
         });
       }
@@ -978,38 +1021,42 @@ app.get(
 // ==========================================
 
 const ehDataISO = (valor) => /^\d{4}-\d{2}-\d{2}$/.test(String(valor || ""));
-const ehHora = (valor) =>
-  /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(valor || ""));
+const ehHora = (valor) => /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(String(valor || ""));
 
 const normalizarHora = (valor) =>
   String(valor).length === 5 ? `${valor}:00` : String(valor);
 
 // --- Turmas -------------------------------------------------------------
 
-app.get("/api/admin/turmas", verificarToken, verificarAdmin, async (_, res) => {
-  try {
-    const cronograma = await cronogramaDb.carregarCronograma(supabase, {
-      forcar: true,
-    });
-    const { data: hoje } = getBrasiliaTime();
+app.get(
+  "/api/admin/turmas",
+  verificarToken,
+  verificarAdmin,
+  async (_, res) => {
+    try {
+      const cronograma = await cronogramaDb.carregarCronograma(supabase, {
+        forcar: true,
+      });
+      const { data: hoje } = getBrasiliaTime();
 
-    const turmas = [...cronograma.turmas.values()].map((t) => ({
-      ...t,
-      totalAulas: cronogramaDb.getAulas(cronograma, t.id).length,
-      aulasOcorridas: cronogramaDb.getAulasOcorridas(cronograma, t.id, hoje)
-        .length,
-    }));
+      const turmas = [...cronograma.turmas.values()].map((t) => ({
+        ...t,
+        totalAulas: cronogramaDb.getAulas(cronograma, t.id).length,
+        aulasOcorridas: cronogramaDb.getAulasOcorridas(cronograma, t.id, hoje)
+          .length,
+      }));
 
-    res.json({
-      origem: cronograma.origem,
-      janelaPonto: cronograma.config?.janela_ponto || "WINDOW_CLOSE",
-      turmas,
-    });
-  } catch (err) {
-    console.error("ERRO LISTAR TURMAS:", err);
-    res.status(500).json({ error: "Erro ao carregar as turmas." });
-  }
-});
+      res.json({
+        origem: cronograma.origem,
+        janelaPonto: cronograma.config?.janela_ponto || "WINDOW_CLOSE",
+        turmas,
+      });
+    } catch (err) {
+      console.error("ERRO LISTAR TURMAS:", err);
+      res.status(500).json({ error: "Erro ao carregar as turmas." });
+    }
+  },
+);
 
 app.put(
   "/api/admin/turmas/:id",
@@ -1033,9 +1080,7 @@ app.put(
 
     if (nome !== undefined) {
       if (!String(nome).trim()) {
-        return res
-          .status(400)
-          .json({ error: "O nome da turma é obrigatório." });
+        return res.status(400).json({ error: "O nome da turma é obrigatório." });
       }
       atualizacao.nome = String(nome).trim();
     }
@@ -1046,8 +1091,7 @@ app.put(
         dias_semana.some((d) => !Number.isInteger(d) || d < 0 || d > 6)
       ) {
         return res.status(400).json({
-          error:
-            "Dias da semana inválidos. Use números de 0 (domingo) a 6 (sábado).",
+          error: "Dias da semana inválidos. Use números de 0 (domingo) a 6 (sábado).",
         });
       }
       atualizacao.dias_semana = [...new Set(dias_semana)].sort();
@@ -1080,11 +1124,7 @@ app.put(
 
     // Coerência: check-in começa junto ou depois da aula; check-out termina depois.
     const decimal = (v) => cronogramaDb.timeParaDecimal(v, null);
-    const atual = await supabase
-      .from("turmas")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
+    const atual = await supabase.from("turmas").select("*").eq("id", id).maybeSingle();
 
     if (atual.error) {
       console.error("ERRO BUSCAR TURMA:", atual.error);
@@ -1207,9 +1247,7 @@ app.patch(
 
     if (data !== undefined) {
       if (!ehDataISO(data)) {
-        return res
-          .status(400)
-          .json({ error: "Data inválida. Use AAAA-MM-DD." });
+        return res.status(400).json({ error: "Data inválida. Use AAAA-MM-DD." });
       }
       atualizacao.data = data;
     }
@@ -1284,9 +1322,7 @@ app.post(
 
     if (!turma_id) return res.status(400).json({ error: "Informe a turma." });
     if (!ehDataISO(inicio) || !ehDataISO(fim)) {
-      return res
-        .status(400)
-        .json({ error: "Período inválido. Use AAAA-MM-DD." });
+      return res.status(400).json({ error: "Período inválido. Use AAAA-MM-DD." });
     }
     if (inicio > fim) {
       return res
@@ -1302,8 +1338,7 @@ app.post(
         .maybeSingle();
 
       if (erroTurma) throw erroTurma;
-      if (!turma)
-        return res.status(404).json({ error: "Turma não encontrada." });
+      if (!turma) return res.status(404).json({ error: "Turma não encontrada." });
 
       const excluir = new Set(
         (Array.isArray(feriados) ? feriados : []).filter(ehDataISO),
@@ -1361,12 +1396,7 @@ app.get("/api/cronograma", async (_, res) => {
         .map((t) => ({
           ...t,
           totalAulas: cronogramaDb.getAulas(cronograma, t.id).length,
-          proximasAulas: cronogramaDb.getProximasAulas(
-            cronograma,
-            t.id,
-            5,
-            hoje,
-          ),
+          proximasAulas: cronogramaDb.getProximasAulas(cronograma, t.id, 5, hoje),
         })),
     });
   } catch (err) {
@@ -1393,25 +1423,124 @@ app.get("/api/cronograma/:formacao", async (req, res) => {
       origem: cronograma.origem,
       modoTeste: MODO_TESTE || cronogramaDb.janelaAberta(cronograma),
       janelaPonto: cronograma.config?.janela_ponto || "WINDOW_CLOSE",
-      // O aluno só precisa liberar GPS se a turma for presencial E a
-      // conferência de local estiver ligada.
+      // O aluno so precisa liberar GPS se a turma for presencial, tiver
+      // coordenadas de sede E estiver com a conferencia de local ligada (por turma).
       exigeLocalizacao:
-        (EXIGIR_LOCALIZACAO || cronogramaDb.exigeLocalizacao(cronograma)) &&
-        turma.modalidade === "presencial",
+        turma.modalidade === "presencial" &&
+        Number.isFinite(turma?.local?.latitude) &&
+        Number.isFinite(turma?.local?.longitude) &&
+        (turma?.local?.exige === true ||
+          EXIGIR_LOCALIZACAO ||
+          cronogramaDb.exigeLocalizacao(cronograma)),
       aulas: cronogramaDb.getAulas(cronograma, formacao),
       aulasOcorridas: cronogramaDb.getAulasOcorridas(cronograma, formacao, hoje)
         .length,
-      proximasAulas: cronogramaDb.getProximasAulas(
-        cronograma,
-        formacao,
-        5,
-        hoje,
-      ),
+      proximasAulas: cronogramaDb.getProximasAulas(cronograma, formacao, 5, hoje),
       temAulaHoje: cronogramaDb.isDiaDeAula(cronograma, formacao, hoje),
     });
   } catch (err) {
     console.error("ERRO CRONOGRAMA TURMA:", err);
     res.status(500).json({ error: "Erro ao carregar o cronograma da turma." });
+  }
+});
+
+// ============================================================
+//  CHAMADA POR QR (presencial) - endpoints do PROFESSOR (protegidos por PIN)
+// ============================================================
+
+// gera um token aleatorio curto para o QR
+const gerarQrToken = () =>
+  Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+
+// valida o PIN da turma e devolve a turma (ou null)
+async function validarPinTurma(turmaId, pin) {
+  if (!turmaId || !pin) return null;
+  const { data } = await supabase
+    .from("turmas")
+    .select("id, nome, qr_pin, exige_qr")
+    .eq("id", turmaId)
+    .maybeSingle();
+  if (!data || !data.qr_pin) return null;
+  return String(data.qr_pin) === String(pin).trim() ? data : null;
+}
+
+// Professor: pega o token ATUAL do QR (rotaciona sozinho a cada ~25s).
+app.get("/api/chamada/token", async (req, res) => {
+  try {
+    const turmaId = req.query.turma;
+    const pin = req.query.pin;
+    const turma = await validarPinTurma(turmaId, pin);
+    if (!turma) return res.status(403).json({ error: "Turma ou PIN incorretos." });
+
+    const { data: hoje } = getBrasiliaTime();
+    const agora = new Date();
+
+    let { data: sess } = await supabase
+      .from("qr_sessoes")
+      .select("*")
+      .eq("turma_id", turmaId)
+      .eq("data", hoje)
+      .maybeSingle();
+
+    const expirado = !sess || new Date(sess.token_expira) <= agora;
+    if (expirado) {
+      const novo = gerarQrToken();
+      const expira = new Date(agora.getTime() + 25000).toISOString(); // 25s
+      if (sess) {
+        await supabase.from("qr_sessoes")
+          .update({ token: novo, token_expira: expira })
+          .eq("id", sess.id);
+      } else {
+        await supabase.from("qr_sessoes")
+          .insert([{ turma_id: turmaId, data: hoje, token: novo, token_expira: expira }]);
+      }
+      sess = { token: novo, token_expira: expira };
+    }
+
+    res.json({
+      ok: true,
+      turma: turma.nome,
+      token: sess.token,
+      expira: sess.token_expira,
+      // conteudo que vai DENTRO do QR (a app le e extrai o token)
+      payload: JSON.stringify({ t: turmaId, k: sess.token }),
+    });
+  } catch (err) {
+    console.error("ERRO chamada/token:", err);
+    res.status(500).json({ error: "Erro ao gerar o QR." });
+  }
+});
+
+// Professor: lista quem ja marcou presenca hoje (para acompanhar ao vivo).
+app.get("/api/chamada/lista", async (req, res) => {
+  try {
+    const turmaId = req.query.turma;
+    const turma = await validarPinTurma(turmaId, req.query.pin);
+    if (!turma) return res.status(403).json({ error: "Turma ou PIN incorretos." });
+
+    const { data: hoje } = getBrasiliaTime();
+    const { data: alunos } = await supabase
+      .from("alunos").select("email, nome").eq("formacao", turmaId);
+    const emails = (alunos || []).map((a) => a.email);
+    let presentes = [];
+    if (emails.length) {
+      const { data: pres } = await supabase
+        .from("presencas")
+        .select("aluno_email, check_in")
+        .eq("data", hoje)
+        .in("aluno_email", emails);
+      presentes = pres || [];
+    }
+    const nomePorEmail = {};
+    (alunos || []).forEach((a) => { nomePorEmail[a.email] = a.nome; });
+    const lista = presentes
+      .map((p) => ({ nome: nomePorEmail[p.aluno_email] || p.aluno_email, check_in: p.check_in }))
+      .sort((a, b) => String(a.check_in).localeCompare(String(b.check_in)));
+
+    res.json({ ok: true, total_turma: emails.length, presentes: lista.length, lista });
+  } catch (err) {
+    console.error("ERRO chamada/lista:", err);
+    res.status(500).json({ error: "Erro ao carregar a lista." });
   }
 });
 

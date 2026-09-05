@@ -44,6 +44,13 @@ const montarTurma = (linha) => ({
   turno: linha.turno,
   dias: Array.isArray(linha.dias_semana) ? linha.dias_semana.map(Number) : [],
   ativa: linha.ativa !== false,
+  sede: linha.sede || null,
+  local: {
+    latitude: Number.isFinite(Number(linha.latitude)) ? Number(linha.latitude) : null,
+    longitude: Number.isFinite(Number(linha.longitude)) ? Number(linha.longitude) : null,
+    raio: Number.isFinite(Number(linha.raio_metros)) ? Number(linha.raio_metros) : 250,
+    exige: linha.exige_local === true,
+  },
   janelas: {
     aula: {
       inicio: timeParaDecimal(linha.aula_inicio, 18),
