@@ -132,7 +132,7 @@ const validarJanelaPonto = (cronograma, formacao, tipo, dataISO, horaTexto) => {
       ok: false,
       motivo: proxima
         ? `Hoje não há aula ao vivo da sua turma. A próxima é em ${proxima.split("-").reverse().join("/")}.`
-        : "Hoje não há aula ao vivo da sua turma.",
+        : "Hoje não há aula ao vivo da sua turma. Tente outro dia.",
     };
   }
 
