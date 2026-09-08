@@ -523,9 +523,7 @@ app.post("/api/ponto", verificarToken, async (req, res) => {
       const exigeLocalizacao =
         turmaAluno?.modalidade === "presencial" &&
         temCoordSede &&
-        (turmaAluno?.local?.exige === true ||
-          EXIGIR_LOCALIZACAO ||
-          cronogramaDb.exigeLocalizacao(cronograma));
+        (turmaAluno?.local?.exige === true);
 
       if (!exigeLocalizacao) {
         const { data: novoPontoOnline, error: insErroOnline } = await supabase
@@ -1426,7 +1424,7 @@ app.get("/api/cronograma", async (_, res) => {
       modoTeste: MODO_TESTE,
       janelaPonto: cronograma.config?.janela_ponto || "WINDOW_CLOSE",
       exigeLocalizacao:
-        EXIGIR_LOCALIZACAO || cronogramaDb.exigeLocalizacao(cronograma),
+        (turma?.local?.exige === true),
       origem: cronograma.origem,
       turmas: [...cronograma.turmas.values()]
         .filter((t) => t.ativa)
@@ -1466,9 +1464,7 @@ app.get("/api/cronograma/:formacao", async (req, res) => {
         turma.modalidade === "presencial" &&
         Number.isFinite(turma?.local?.latitude) &&
         Number.isFinite(turma?.local?.longitude) &&
-        (turma?.local?.exige === true ||
-          EXIGIR_LOCALIZACAO ||
-          cronogramaDb.exigeLocalizacao(cronograma)),
+        (turma?.local?.exige === true),
       aulas: cronogramaDb.getAulas(cronograma, formacao),
       aulasOcorridas: cronogramaDb.getAulasOcorridas(cronograma, formacao, hoje)
         .length,
@@ -1609,7 +1605,7 @@ app.get("/api/professor/hoje", verificarToken, async (req, res) => {
       turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede,
         exigeLocalizacao: turma.modalidade === "presencial" &&
           Number.isFinite(turma?.local?.latitude) && Number.isFinite(turma?.local?.longitude) &&
-          (turma?.local?.exige === true || EXIGIR_LOCALIZACAO) } : null,
+          (turma?.local?.exige === true) } : null,
     });
   } catch (err) {
     console.error("ERRO professor/hoje:", err);
@@ -1635,7 +1631,7 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
     const turma = turmaId ? cronogramaDb.getTurma(cronograma, turmaId) : null;
     const exigeLoc = turma && turma.modalidade === "presencial" &&
       Number.isFinite(turma?.local?.latitude) && Number.isFinite(turma?.local?.longitude) &&
-      (turma?.local?.exige === true || EXIGIR_LOCALIZACAO || cronogramaDb.exigeLocalizacao(cronograma));
+      (turma?.local?.exige === true);
 
     let lat = null, lng = null;
     if (tipo === "checkin" && exigeLoc) {
@@ -1732,6 +1728,69 @@ app.get("/api/professor/turma", verificarToken, async (req, res) => {
   } catch (err) {
     console.error("ERRO professor/turma:", err);
     res.status(500).json({ error: "Erro ao carregar a turma." });
+  }
+});
+
+// relatorio completo da turma (todas as datas/alunos) - para navegacao por data + export
+app.get("/api/professor/relatorio", verificarToken, async (req, res) => {
+  try {
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const turmaId = req.usuarioLogado.turma || null;
+    if (!turmaId) return res.json({ turma: null, alunos: [], registros: [] });
+    const cronograma = await cronogramaDb.carregarCronograma(supabase);
+    const turma = cronogramaDb.getTurma(cronograma, turmaId);
+    const { data: alunos } = await supabase
+      .from("alunos").select("email, nome").eq("formacao", turmaId);
+    const emails = (alunos || []).map((a) => a.email);
+    let registros = [];
+    if (emails.length) {
+      const { data: pres } = await supabase
+        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails);
+      registros = pres || [];
+    }
+    res.json({
+      turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede } : { id: turmaId, nome: turmaId },
+      alunos: (alunos || []).sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))),
+      registros,
+    });
+  } catch (err) {
+    console.error("ERRO professor/relatorio:", err);
+    res.status(500).json({ error: "Erro ao carregar o relatorio." });
+  }
+});
+
+// professor edita a presenca de um aluno num dia (marcar/desmarcar)
+app.post("/api/professor/presenca", verificarToken, async (req, res) => {
+  try {
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const turmaId = req.usuarioLogado.turma || null;
+    const { aluno_email, data, presente } = req.body;
+    if (!aluno_email || !data) return res.status(400).json({ error: "Dados incompletos." });
+    const email = String(aluno_email).toLowerCase();
+    const dia = String(data).slice(0, 10);
+
+    // seguranca: o aluno tem que ser da turma do professor
+    const { data: dono } = await supabase
+      .from("alunos").select("email").eq("email", email).eq("formacao", turmaId).maybeSingle();
+    if (!dono) return res.status(403).json({ error: "Aluno nao pertence a sua turma." });
+
+    if (presente) {
+      // garante um registro de presenca no dia (marca presente)
+      const { data: existe } = await supabase
+        .from("presencas").select("id, check_in").eq("aluno_email", email).eq("data", dia).maybeSingle();
+      if (!existe) {
+        await supabase.from("presencas").insert([{ aluno_email: email, data: dia, check_in: `${dia}T12:00:00` }]);
+      } else if (!existe.check_in) {
+        await supabase.from("presencas").update({ check_in: `${dia}T12:00:00` }).eq("id", existe.id);
+      }
+    } else {
+      // desmarca: remove o registro do dia
+      await supabase.from("presencas").delete().eq("aluno_email", email).eq("data", dia);
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERRO professor/presenca:", err);
+    res.status(500).json({ error: "Erro ao salvar a presenca." });
   }
 });
 
