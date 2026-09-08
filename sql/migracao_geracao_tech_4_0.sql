@@ -85,14 +85,14 @@ INSERT INTO public.turmas
   (id, nome, curso, modalidade, turno, dias_semana,
    checkin_inicio, checkin_fim, checkout_inicio, checkout_fim, aula_inicio, aula_fim)
 VALUES
-  ('fullstack_online','Full Stack — Online (seg, 18h às 22h)','fullstack','online','noite',ARRAY[1]::smallint[],'18:00','20:30','21:30','22:30','18:00','22:00'),
+  ('fullstack_online','Full Stack — Online (seg, 18h às 22h)','fullstack','online','noite',ARRAY[1]::smallint[],'18:30','20:30','21:30','22:30','18:30','22:30'),
   ('fullstack_pres_manha','Full Stack — Presencial manhã (seg a sex, 8h às 12h)','fullstack','presencial','manha',ARRAY[1,2,3,4,5]::smallint[],'08:00','10:30','11:30','12:30','08:00','12:00'),
   ('fullstack_pres_tarde','Full Stack — Presencial tarde (seg a sex, 13h às 17h)','fullstack','presencial','tarde',ARRAY[1,2,3,4,5]::smallint[],'13:00','15:30','16:30','17:30','13:00','17:00'),
-  ('ia_online','IA Generativa — Online (seg, 18h às 22h)','ia','online','noite',ARRAY[1]::smallint[],'18:00','20:30','21:30','22:30','18:00','22:00'),
+  ('ia_online','IA Generativa — Online (seg, 18h às 22h)','ia','online','noite',ARRAY[1]::smallint[],'18:30','20:30','21:30','22:30','18:30','22:30'),
   ('ia_pres_manha','IA Generativa — Presencial manhã (3x/semana, 8h às 12h)','ia','presencial','manha',ARRAY[1,3,5]::smallint[],'08:00','10:30','11:30','12:30','08:00','12:00'),
   ('ia_pres_tarde','IA Generativa — Presencial tarde (3x/semana, 13h às 17h)','ia','presencial','tarde',ARRAY[1,3,5]::smallint[],'13:00','15:30','16:30','17:30','13:00','17:00'),
-  ('fullcycle_online','FullCycle — Online (seg, 18h às 22h)','fullcycle','online','noite',ARRAY[1]::smallint[],'18:00','20:30','21:30','22:30','18:00','22:00'),
-  ('fullcycle_pres_noite','FullCycle — Presencial noite (3x/semana, 18h às 22h)','fullcycle','presencial','noite',ARRAY[1,3,5]::smallint[],'18:00','20:30','21:30','22:30','18:00','22:00')
+  ('fullcycle_online','FullCycle — Online (seg, 18h às 22h)','fullcycle','online','noite',ARRAY[1]::smallint[],'18:30','20:30','21:30','22:30','18:30','22:30'),
+  ('fullcycle_pres_noite','FullCycle — Presencial noite (3x/semana, 18h às 22h)','fullcycle','presencial','noite',ARRAY[1,3,5]::smallint[],'18:30','20:30','21:30','22:30','18:30','22:30')
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS public.calendario_aulas (

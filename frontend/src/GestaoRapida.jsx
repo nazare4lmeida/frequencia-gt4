@@ -27,8 +27,8 @@ export default function GestaoRapida({ user, setView }) {
   });
   const [manualPonto, setManualPonto] = useState({
     data: hojeBrasilia(),
-    check_in: "18:00",
-    check_out: "22:00",
+    check_in: "18:30",
+    check_out: "22:30",
   });
 
   useEffect(() => {

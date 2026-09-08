@@ -307,8 +307,12 @@ app.post("/api/login", async (req, res) => {
           return res.status(401).json({ error: "Data de nascimento incorreta." });
         }
       }
+      const turmasArr = prof.turmas
+        ? String(prof.turmas).split(",").map((s) => s.trim()).filter(Boolean)
+        : (prof.turma ? [prof.turma] : []);
+      const turmaPrincipal = prof.turma || turmasArr[0] || null;
       const token = jwt.sign(
-        { email: emailFormatado, role: "professor", tipo: prof.tipo || "professor", turma: prof.turma || null },
+        { email: emailFormatado, role: "professor", tipo: prof.tipo || "professor", turma: turmaPrincipal, turmas: turmasArr },
         JWT_SECRET,
         { expiresIn: "720h" },
       );
@@ -316,7 +320,8 @@ app.post("/api/login", async (req, res) => {
         nome: prof.nome || emailFormatado,
         role: "professor",
         tipo: prof.tipo || "professor",
-        turma: prof.turma || null,
+        turma: turmaPrincipal,
+        turmas: turmasArr,
         email: emailFormatado,
         token,
       });
@@ -1581,27 +1586,42 @@ app.get("/api/chamada/lista", async (req, res) => {
 //  PONTO DO PROFESSOR / MONITOR (check-in/out + avaliacao) - P2
 // ============================================================
 
+// resolve a turma que o professor esta operando (query/body) e valida que e uma das dele
+function turmaDoProfessor(req) {
+  const lista = (req.usuarioLogado.turmas && req.usuarioLogado.turmas.length)
+    ? req.usuarioLogado.turmas
+    : (req.usuarioLogado.turma ? [req.usuarioLogado.turma] : []);
+  const pedida = (req.query && req.query.turma) || (req.body && req.body.turma) || null;
+  if (pedida && lista.includes(pedida)) return { turma: pedida, lista, ok: true };
+  if (pedida && !lista.includes(pedida)) return { turma: null, lista, ok: false };
+  return { turma: lista[0] || null, lista, ok: true };
+}
+
 // registro de hoje do professor (para saber se ja fez check-in/out)
 app.get("/api/professor/hoje", verificarToken, async (req, res) => {
   try {
     if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
     const email = String(req.usuarioLogado.email).toLowerCase();
+    const sel = turmaDoProfessor(req);
+    if (!sel.ok) return res.status(403).json({ error: "Turma nao pertence a voce." });
     const { data: hoje } = getBrasiliaTime();
     let reg = null;
     try {
-      const r = await supabase
-        .from("presencas_professor").select("*")
-        .eq("professor_email", email).eq("data", hoje).maybeSingle();
+      let q = supabase.from("presencas_professor").select("*")
+        .eq("professor_email", email).eq("data", hoje);
+      if (sel.turma) q = q.eq("turma", sel.turma);
+      const r = await q.maybeSingle();
       reg = r.data || null;
     } catch (e) {
       console.error("presencas_professor indisponivel (rode o SQL 12):", e?.message || e);
     }
-    // dados da turma (nome + se exige GPS)
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
-    const turma = req.usuarioLogado.turma ? cronogramaDb.getTurma(cronograma, req.usuarioLogado.turma) : null;
+    const turma = sel.turma ? cronogramaDb.getTurma(cronograma, sel.turma) : null;
     res.json({
       data: hoje,
       registro: reg || null,
+      turmas: sel.lista,
+      turmaSel: sel.turma,
       turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede,
         exigeLocalizacao: turma.modalidade === "presencial" &&
           Number.isFinite(turma?.local?.latitude) && Number.isFinite(turma?.local?.longitude) &&
@@ -1618,7 +1638,9 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
   try {
     if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
     const email = String(req.usuarioLogado.email).toLowerCase();
-    const turmaId = req.usuarioLogado.turma || null;
+    const selp = turmaDoProfessor(req);
+    if (!selp.ok) return res.status(403).json({ error: "Turma nao pertence a voce." });
+    const turmaId = selp.turma;
     const { tipo, latitude, longitude, engajamento, nivelamento, observacao } = req.body;
     if (!["checkin", "checkout"].includes(tipo)) {
       return res.status(400).json({ error: "Tipo invalido." });
@@ -1645,13 +1667,14 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
       }
     }
 
-    // registro de hoje
-    const { data: reg } = await supabase
-      .from("presencas_professor").select("*")
-      .eq("professor_email", email).eq("data", hoje).maybeSingle();
+    // registro de hoje (por turma)
+    let rq = supabase.from("presencas_professor").select("*")
+      .eq("professor_email", email).eq("data", hoje);
+    if (turmaId) rq = rq.eq("turma", turmaId);
+    const { data: reg } = await rq.maybeSingle();
 
     if (tipo === "checkin") {
-      if (reg && reg.check_in) return res.status(400).json({ error: "Voce ja fez check-in hoje." });
+      if (reg && reg.check_in) return res.status(400).json({ error: "Voce ja fez check-in nesta turma hoje." });
       const linha = { professor_email: email, turma: turmaId, data: hoje, check_in: ts,
         checkin_latitude: lat, checkin_longitude: lng };
       if (reg) await supabase.from("presencas_professor").update(linha).eq("id", reg.id);
@@ -1681,7 +1704,7 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
 app.get("/api/professor/turma", verificarToken, async (req, res) => {
   try {
     if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
-    const turmaId = req.usuarioLogado.turma || null;
+    const _s = turmaDoProfessor(req); if(!_s.ok) return res.status(403).json({ error: "Turma nao pertence a voce." }); const turmaId = _s.turma;
     if (!turmaId) return res.json({ turma: null, alunos: [], presentes_hoje: 0, total: 0 });
 
     const { data: hoje } = getBrasiliaTime();
@@ -1735,7 +1758,7 @@ app.get("/api/professor/turma", verificarToken, async (req, res) => {
 app.get("/api/professor/relatorio", verificarToken, async (req, res) => {
   try {
     if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
-    const turmaId = req.usuarioLogado.turma || null;
+    const _sr = turmaDoProfessor(req); if(!_sr.ok) return res.status(403).json({ error: "Turma nao pertence a voce." }); const turmaId = _sr.turma;
     if (!turmaId) return res.json({ turma: null, alunos: [], registros: [] });
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
     const turma = cronogramaDb.getTurma(cronograma, turmaId);

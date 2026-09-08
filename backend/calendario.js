@@ -8,8 +8,8 @@
 
 const PERIODO_LETIVO = {
   aulaInaugural: "2026-09-08", // terça — presencial e online, todas as formações
-  inicio: "2026-09-09",        // quarta
-  fim: "2026-11-19",           // quinta
+  inicio: "2026-09-09", // quarta
+  fim: "2026-11-19", // quinta
   formatura: "2026-11-25",
   recruitingDay: "2027-01-27",
 };
@@ -38,7 +38,7 @@ const JANELAS_POR_TURNO = {
     aula: { inicio: 18, fim: 22 },
     checkIn: { inicio: 18, fim: 20.5 },
     checkOut: { inicio: 21.5, fim: 22.5 },
-    label: "18:00 às 22:00",
+    label: "18:30 às 22:30",
   },
 };
 
@@ -47,14 +47,70 @@ const DIAS_SEG_A_SEX = [1, 2, 3, 4, 5];
 const DIAS_SOMENTE_SEGUNDA = [1];
 
 const FORMACOES = [
-  { id: "fullstack_online",     nome: "Full Stack — Online (seg, 18h às 22h)",                    curso: "fullstack", modalidade: "online",     turno: "noite", dias: DIAS_SOMENTE_SEGUNDA },
-  { id: "fullstack_pres_manha", nome: "Full Stack — Presencial manhã (seg a sex, 8h às 12h)",     curso: "fullstack", modalidade: "presencial", turno: "manha", dias: DIAS_SEG_A_SEX },
-  { id: "fullstack_pres_tarde", nome: "Full Stack — Presencial tarde (seg a sex, 13h às 17h)",    curso: "fullstack", modalidade: "presencial", turno: "tarde", dias: DIAS_SEG_A_SEX },
-  { id: "ia_online",            nome: "IA Generativa — Online (seg, 18h às 22h)",                 curso: "ia",        modalidade: "online",     turno: "noite", dias: DIAS_SOMENTE_SEGUNDA },
-  { id: "ia_pres_manha",        nome: "IA Generativa — Presencial manhã (3x/semana, 8h às 12h)",  curso: "ia",        modalidade: "presencial", turno: "manha", dias: DIAS_TRES_VEZES_SEMANA },
-  { id: "ia_pres_tarde",        nome: "IA Generativa — Presencial tarde (3x/semana, 13h às 17h)", curso: "ia",        modalidade: "presencial", turno: "tarde", dias: DIAS_TRES_VEZES_SEMANA },
-  { id: "fullcycle_online",     nome: "FullCycle — Online (seg, 18h às 22h)",                     curso: "fullcycle", modalidade: "online",     turno: "noite", dias: DIAS_SOMENTE_SEGUNDA },
-  { id: "fullcycle_pres_noite", nome: "FullCycle — Presencial noite (3x/semana, 18h às 22h)",     curso: "fullcycle", modalidade: "presencial", turno: "noite", dias: DIAS_TRES_VEZES_SEMANA },
+  {
+    id: "fullstack_online",
+    nome: "Full Stack — Online (seg, 18h às 22h)",
+    curso: "fullstack",
+    modalidade: "online",
+    turno: "noite",
+    dias: DIAS_SOMENTE_SEGUNDA,
+  },
+  {
+    id: "fullstack_pres_manha",
+    nome: "Full Stack — Presencial manhã (seg a sex, 8h às 12h)",
+    curso: "fullstack",
+    modalidade: "presencial",
+    turno: "manha",
+    dias: DIAS_SEG_A_SEX,
+  },
+  {
+    id: "fullstack_pres_tarde",
+    nome: "Full Stack — Presencial tarde (seg a sex, 13h às 17h)",
+    curso: "fullstack",
+    modalidade: "presencial",
+    turno: "tarde",
+    dias: DIAS_SEG_A_SEX,
+  },
+  {
+    id: "ia_online",
+    nome: "IA Generativa — Online (seg, 18h às 22h)",
+    curso: "ia",
+    modalidade: "online",
+    turno: "noite",
+    dias: DIAS_SOMENTE_SEGUNDA,
+  },
+  {
+    id: "ia_pres_manha",
+    nome: "IA Generativa — Presencial manhã (3x/semana, 8h às 12h)",
+    curso: "ia",
+    modalidade: "presencial",
+    turno: "manha",
+    dias: DIAS_TRES_VEZES_SEMANA,
+  },
+  {
+    id: "ia_pres_tarde",
+    nome: "IA Generativa — Presencial tarde (3x/semana, 13h às 17h)",
+    curso: "ia",
+    modalidade: "presencial",
+    turno: "tarde",
+    dias: DIAS_TRES_VEZES_SEMANA,
+  },
+  {
+    id: "fullcycle_online",
+    nome: "FullCycle — Online (seg, 18h às 22h)",
+    curso: "fullcycle",
+    modalidade: "online",
+    turno: "noite",
+    dias: DIAS_SOMENTE_SEGUNDA,
+  },
+  {
+    id: "fullcycle_pres_noite",
+    nome: "FullCycle — Presencial noite (3x/semana, 18h às 22h)",
+    curso: "fullcycle",
+    modalidade: "presencial",
+    turno: "noite",
+    dias: DIAS_TRES_VEZES_SEMANA,
+  },
 ];
 
 const IDS_FORMACOES = FORMACOES.map((f) => f.id);

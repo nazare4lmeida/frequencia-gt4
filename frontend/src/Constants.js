@@ -53,7 +53,7 @@ export const JANELAS_POR_TURNO = {
     aula: { inicio: 18, fim: 22 },
     checkIn: { inicio: 18, fim: 20.5 },
     checkOut: { inicio: 21.5, fim: 22.5 },
-    label: "18:00 às 22:00",
+    label: "18:30 às 22:30",
   },
 };
 

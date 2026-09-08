@@ -10,6 +10,9 @@ export default function ProfessorHome({ user }) {
   const [mostrarAval, setMostrarAval] = useState(false);
   const [aval, setAval] = useState({ engajamento: 0, nivelamento: "", observacao: "" });
   const [tab, setTab] = useState("ponto");
+  const turmasProf = (user.turmas && user.turmas.length) ? user.turmas : (user.turma ? [user.turma] : []);
+  const [selTurma, setSelTurma] = useState(turmasProf[0] || "");
+  const qs = (extra) => "?turma=" + encodeURIComponent(selTurma || "") + (extra || "");
 
   const [rel, setRel] = useState(null);
   const [carregandoRel, setCarregandoRel] = useState(false);
@@ -26,7 +29,7 @@ export default function ProfessorHome({ user }) {
 
   const carregar = async () => {
     try {
-      const res = await fetchComToken("/professor/hoje", "GET");
+      const res = await fetchComToken("/professor/hoje" + qs(), "GET");
       const data = await res.json();
       if (res.ok) setHoje(data);
       else setMsg({ tipo: "erro", texto: data.error || "Erro ao carregar." });
@@ -34,11 +37,12 @@ export default function ProfessorHome({ user }) {
     finally { setCarregando(false); }
   };
   useEffect(() => { carregar(); }, []);
+  useEffect(() => { if (selTurma) { setRel(null); carregar(); if (tab === "turma") carregarRel(); } }, [selTurma]);
 
   const carregarRel = async () => {
     setCarregandoRel(true);
     try {
-      const res = await fetchComToken("/professor/relatorio", "GET");
+      const res = await fetchComToken("/professor/relatorio" + qs(), "GET");
       const data = await res.json();
       if (res.ok) {
         setRel(data);
@@ -72,7 +76,7 @@ export default function ProfessorHome({ user }) {
       }
     }
     try {
-      const res = await fetchComToken("/professor/ponto", "POST", { tipo: "checkin", ...loc });
+      const res = await fetchComToken("/professor/ponto", "POST", { tipo: "checkin", turma: selTurma, ...loc });
       const data = await res.json();
       if (res.ok) { setMsg({ tipo: "ok", texto: "Check-in registrado as " + data.hora + "." }); await carregar(); }
       else setMsg({ tipo: "erro", texto: data.error || "Erro no check-in." });
@@ -88,7 +92,7 @@ export default function ProfessorHome({ user }) {
     setEnviando(true); setMsg(null);
     try {
       const res = await fetchComToken("/professor/ponto", "POST", {
-        tipo: "checkout", engajamento: aval.engajamento, nivelamento: aval.nivelamento, observacao: aval.observacao,
+        tipo: "checkout", turma: selTurma, engajamento: aval.engajamento, nivelamento: aval.nivelamento, observacao: aval.observacao,
       });
       const data = await res.json();
       if (res.ok) { setMsg({ tipo: "ok", texto: "Check-out e avaliacao registrados as " + data.hora + "." }); setMostrarAval(false); await carregar(); }
@@ -100,7 +104,7 @@ export default function ProfessorHome({ user }) {
   const togglePresenca = async (email, presenteAtual) => {
     setSalvandoCpf(email);
     try {
-      const res = await fetchComToken("/professor/presenca", "POST", { aluno_email: email, data: dataSel, presente: !presenteAtual });
+      const res = await fetchComToken("/professor/presenca", "POST", { aluno_email: email, data: dataSel, presente: !presenteAtual, turma: selTurma });
       if (res.ok) await carregarRel();
     } catch { /* silencioso */ }
     setSalvandoCpf("");
@@ -160,6 +164,16 @@ export default function ProfessorHome({ user }) {
             </button>
           ))}
         </div>
+
+        {turmasProf.length > 1 && (
+          <div style={{ margin: "12px 0 2px" }}>
+            <label style={{ fontSize: 12, color: "var(--text-dim)", display: "block", marginBottom: 6 }}>Turma que voce esta dando aula</label>
+            <select value={selTurma} onChange={(e) => setSelTurma(e.target.value)}
+              style={{ width: "100%", maxWidth: 380, padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,.2)", background: "#0f2647", color: "#fff" }}>
+              {turmasProf.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        )}
 
         {msg && (
           <div className="info-banner" style={{ margin: "14px 0", borderLeft: "5px solid " + (msg.tipo === "ok" ? "#16A34A" : "#D4453F") }}>

@@ -15,15 +15,15 @@ turma, com os dias e horários certos. A sessão dura 12 horas.
 
 ### Turmas
 
-| Formação | Modalidade | Quando |
-|---|---|---|
-| Desenvolvedor Full Stack | Online | Segundas, 18h às 22h |
-| Desenvolvedor Full Stack | Presencial manhã | Seg a sex, 8h às 12h |
-| Desenvolvedor Full Stack | Presencial tarde | Seg a sex, 13h às 17h |
-| IA Generativa | Online | Segundas, 18h às 22h |
-| IA Generativa | Presencial manhã | 3x/semana, 8h às 12h |
-| IA Generativa | Presencial tarde | 3x/semana, 13h às 17h |
-| FullCycle – Eng. de Software | Online | Segundas, 18h às 22h |
+| Formação                     | Modalidade       | Quando                |
+| ---------------------------- | ---------------- | --------------------- |
+| Desenvolvedor Full Stack     | Online           | Segundas, 18h às 22h  |
+| Desenvolvedor Full Stack     | Presencial manhã | Seg a sex, 8h às 12h  |
+| Desenvolvedor Full Stack     | Presencial tarde | Seg a sex, 13h às 17h |
+| IA Generativa                | Online           | Segundas, 18h às 22h  |
+| IA Generativa                | Presencial manhã | 3x/semana, 8h às 12h  |
+| IA Generativa                | Presencial tarde | 3x/semana, 13h às 17h |
+| FullCycle – Eng. de Software | Online           | Segundas, 18h às 22h  |
 | FullCycle – Eng. de Software | Presencial noite | 3x/semana, 18h às 22h |
 
 Aula inaugural: **08/09/2026** (presencial e online, todas as turmas).
@@ -33,11 +33,11 @@ Aulas: **09/09/2026 a 19/11/2026**. Formatura: 25/11/2026.
 
 As janelas seguem o turno da sua turma (a coordenação pode ajustá-las):
 
-| Turno | Check-in | Check-out |
-|---|---|---|
+| Turno | Check-in      | Check-out     |
+| ----- | ------------- | ------------- |
 | Manhã | 08:00 – 10:30 | 11:30 – 12:30 |
 | Tarde | 13:00 – 15:30 | 16:30 – 17:30 |
-| Noite | 18:00 – 20:30 | 21:30 – 22:30 |
+| Noite | 18:30 – 20:30 | 21:30 – 22:30 |
 
 A presença só conta **depois do check-out**. Nas turmas presenciais o
 check-in confere sua localização; nas online, não.
@@ -51,15 +51,15 @@ check-in confere sua localização; nas online, não.
 Toda a gestão de dias, horários e datas de aula acontece no painel admin,
 aba **Cronograma** — sem SQL e sem deploy.
 
-| Ação | Onde na tela |
-|---|---|
-| Trocar os dias da semana da turma | Dias e horários |
-| Mudar horário de aula, check-in e check-out | Dias e horários |
-| Adicionar uma data de aula avulsa | Adicionar uma aula |
-| Editar a data ou o tema de uma aula | Lista de datas → Editar |
-| Cancelar uma aula mantendo o histórico | Lista de datas → Cancelar |
-| Apagar a data de vez | Lista de datas → Remover |
-| Criar todas as datas de um período | Gerar várias datas |
+| Ação                                        | Onde na tela              |
+| ------------------------------------------- | ------------------------- |
+| Trocar os dias da semana da turma           | Dias e horários           |
+| Mudar horário de aula, check-in e check-out | Dias e horários           |
+| Adicionar uma data de aula avulsa           | Adicionar uma aula        |
+| Editar a data ou o tema de uma aula         | Lista de datas → Editar   |
+| Cancelar uma aula mantendo o histórico      | Lista de datas → Cancelar |
+| Apagar a data de vez                        | Lista de datas → Remover  |
+| Criar todas as datas de um período          | Gerar várias datas        |
 
 **Cancelar x Remover:** cancelar tira a data do cálculo de frequência e
 mantém o registro; remover apaga de vez. Prefira cancelar.
@@ -113,16 +113,16 @@ diferentes, então a decisão é da organização.
 
 ### Variáveis de ambiente (`backend/.env`)
 
-| Variável | Para quê |
-|---|---|
-| `SUPABASE_URL`, `SUPABASE_KEY` | Conexão com o banco |
-| `JWT_SECRET` | Assinatura dos tokens |
-| `ADMIN_EMAIL`, `ADMIN_PASS` | Acesso administrativo |
-| `EXIGIR_LOCALIZACAO` | `false` desliga a conferência de GPS |
-| `CLASSROOM_LAT`, `CLASSROOM_LNG` | Endereço da aula presencial |
-| `CHECKIN_RADIUS_METERS` | Raio aceito no check-in (padrão 120) |
-| `TEST_LOCATION_LAT/LNG` | Segundo local aceito, para teste |
-| `MODO_TESTE` | `true` libera ponto em qualquer dia/hora |
+| Variável                         | Para quê                                 |
+| -------------------------------- | ---------------------------------------- |
+| `SUPABASE_URL`, `SUPABASE_KEY`   | Conexão com o banco                      |
+| `JWT_SECRET`                     | Assinatura dos tokens                    |
+| `ADMIN_EMAIL`, `ADMIN_PASS`      | Acesso administrativo                    |
+| `EXIGIR_LOCALIZACAO`             | `false` desliga a conferência de GPS     |
+| `CLASSROOM_LAT`, `CLASSROOM_LNG` | Endereço da aula presencial              |
+| `CHECKIN_RADIUS_METERS`          | Raio aceito no check-in (padrão 120)     |
+| `TEST_LOCATION_LAT/LNG`          | Segundo local aceito, para teste         |
+| `MODO_TESTE`                     | `true` libera ponto em qualquer dia/hora |
 
 ### Desligando a conferência de localização
 
@@ -137,10 +137,10 @@ falha — o servidor avisa no console quando sobe nessa configuração.
 
 Na tabela `configuracoes` do Supabase, a linha `janela_ponto`:
 
-| Valor | Efeito |
-|---|---|
-| `WINDOW_CLOSE` | Normal: só bate ponto no dia e horário da aula |
-| `WINDOW_OPEN` | Teste: qualquer aluno bate ponto a qualquer dia e hora |
+| Valor          | Efeito                                                 |
+| -------------- | ------------------------------------------------------ |
+| `WINDOW_CLOSE` | Normal: só bate ponto no dia e horário da aula         |
+| `WINDOW_OPEN`  | Teste: qualquer aluno bate ponto a qualquer dia e hora |
 
 Troque o valor direto no editor de tabelas — sem deploy, sem reiniciar. O
 efeito aparece em até 5 segundos.

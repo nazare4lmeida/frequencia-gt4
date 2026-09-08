@@ -45,8 +45,8 @@ export default function Admin({ user }) {
   // Os horários padrão seguem o turno da turma filtrada (noite como fallback).
   const [manualPonto, setManualPonto] = useState({
     data: hojeBrasilia(),
-    check_in: "18:00",
-    check_out: "22:00",
+    check_in: "18:30",
+    check_out: "22:30",
   });
 
   // 1. Carregar estatísticas gerais da turma
@@ -739,7 +739,13 @@ export default function Admin({ user }) {
               >
                 LISTAGEM DE ALUNOS
               </span>
-              <span style={{ fontSize: "0.85rem", fontWeight: "700", color: "#f4f8ff" }}>
+              <span
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: "700",
+                  color: "#f4f8ff",
+                }}
+              >
                 {totalEncontrado} registros encontrados
               </span>
             </div>

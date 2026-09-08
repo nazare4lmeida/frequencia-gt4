@@ -231,8 +231,16 @@ const checar = (nome, condicao, extra) => {
   console.log("\n== Fallback: banco sem tabela de turmas ==");
   let r = await chamar("GET", "/api/admin/turmas");
   checar("lista turmas mesmo sem seed", r.status === 200, r.body);
-  checar("origem = codigo (fallback)", r.body.origem === "codigo", r.body.origem);
-  checar("8 turmas do código", r.body.turmas?.length === 8, r.body.turmas?.length);
+  checar(
+    "origem = codigo (fallback)",
+    r.body.origem === "codigo",
+    r.body.origem,
+  );
+  checar(
+    "8 turmas do código",
+    r.body.turmas?.length === 8,
+    r.body.turmas?.length,
+  );
 
   console.log("\n== Com o seed aplicado ==");
   banco.turmas = [
@@ -243,9 +251,9 @@ const checar = (nome, condicao, extra) => {
       modalidade: "online",
       turno: "noite",
       dias_semana: [1],
-      aula_inicio: "18:00:00",
-      aula_fim: "22:00:00",
-      checkin_inicio: "18:00:00",
+      aula_inicio: "18:30:00",
+      aula_fim: "22:30:00",
+      checkin_inicio: "18:30:00",
       checkin_fim: "20:30:00",
       checkout_inicio: "21:30:00",
       checkout_fim: "22:30:00",
@@ -268,13 +276,31 @@ const checar = (nome, condicao, extra) => {
     },
   ];
   banco.calendario_aulas = [
-    { id: proximoId++, turma_id: "fullstack_online", data: "2026-09-14", cancelada: false },
-    { id: proximoId++, turma_id: "fullstack_online", data: "2026-09-21", cancelada: false },
+    {
+      id: proximoId++,
+      turma_id: "fullstack_online",
+      data: "2026-09-14",
+      cancelada: false,
+    },
+    {
+      id: proximoId++,
+      turma_id: "fullstack_online",
+      data: "2026-09-21",
+      cancelada: false,
+    },
   ];
 
   r = await chamar("GET", "/api/admin/turmas");
-  checar("origem = banco depois do seed", r.body.origem === "banco", r.body.origem);
-  checar("2 turmas do banco", r.body.turmas?.length === 2, r.body.turmas?.length);
+  checar(
+    "origem = banco depois do seed",
+    r.body.origem === "banco",
+    r.body.origem,
+  );
+  checar(
+    "2 turmas do banco",
+    r.body.turmas?.length === 2,
+    r.body.turmas?.length,
+  );
 
   console.log("\n== Adicionar data de aula ==");
   r = await chamar("POST", "/api/admin/calendario", {
@@ -346,10 +372,14 @@ const checar = (nome, condicao, extra) => {
     r.body.janelas.checkIn.inicio === 19,
     r.body.janelas.checkIn,
   );
-  checar("dias atualizados", String(r.body.turma.dias) === "2,4", r.body.turma.dias);
+  checar(
+    "dias atualizados",
+    String(r.body.turma.dias) === "2,4",
+    r.body.turma.dias,
+  );
 
   r = await chamar("PUT", "/api/admin/turmas/fullstack_online", {
-    checkin_inicio: "22:00",
+    checkin_inicio: "22:30",
     checkin_fim: "19:00",
   });
   checar("recusa janela invertida", r.status === 400, r.body);
@@ -392,18 +422,28 @@ const checar = (nome, condicao, extra) => {
     { email: "aluno@teste.com", role: "aluno" },
     process.env.JWT_SECRET,
   );
-  r = await chamar("POST", "/api/admin/calendario", { turma_id: "x", data: "2026-01-01" }, tokenAluno);
+  r = await chamar(
+    "POST",
+    "/api/admin/calendario",
+    { turma_id: "x", data: "2026-01-01" },
+    tokenAluno,
+  );
   checar("aluno não gerencia cronograma (403)", r.status === 403, r.status);
 
   r = await chamar("GET", "/api/admin/turmas", null, null);
   checar("sem token é bloqueado (403)", r.status === 403, r.status);
 
   console.log("\n== Login valida a turma ==");
-  r = await chamar("POST", "/api/login", {
-    email: "novo@teste.com",
-    dataNascimento: "2000-05-05",
-    formacao: "turma_inexistente",
-  }, null);
+  r = await chamar(
+    "POST",
+    "/api/login",
+    {
+      email: "novo@teste.com",
+      dataNascimento: "2000-05-05",
+      formacao: "turma_inexistente",
+    },
+    null,
+  );
   checar("recusa turma inexistente no login", r.status === 400, r.body);
 
   console.log("\n== Check-in do aluno respeita o cronograma ==");
@@ -419,11 +459,16 @@ const checar = (nome, condicao, extra) => {
   // Devolve a turma para segunda-feira e janela padrão
   await chamar("PUT", "/api/admin/turmas/fullstack_online", {
     dias_semana: [1],
-    checkin_inicio: "18:00",
+    checkin_inicio: "18:30",
     checkin_fim: "20:30",
   });
 
-  r = await chamar("POST", "/api/ponto", { aluno_id: "aluno@teste.com" }, tokenAluno);
+  r = await chamar(
+    "POST",
+    "/api/ponto",
+    { aluno_id: "aluno@teste.com" },
+    tokenAluno,
+  );
   checar(
     "check-in fora de dia de aula é recusado (403)",
     r.status === 403,
@@ -452,8 +497,14 @@ const checar = (nome, condicao, extra) => {
     checkin_fim: "00:01",
   });
 
-  r = await chamar("POST", "/api/ponto", { aluno_id: "aluno@teste.com" }, tokenAluno);
-  const foraDaJanela = r.status === 403 && String(r.body.error).includes("janela");
+  r = await chamar(
+    "POST",
+    "/api/ponto",
+    { aluno_id: "aluno@teste.com" },
+    tokenAluno,
+  );
+  const foraDaJanela =
+    r.status === 403 && String(r.body.error).includes("janela");
   const dentroPorAcaso = r.status === 200;
   checar(
     "check-in fora da janela é recusado",
@@ -467,7 +518,12 @@ const checar = (nome, condicao, extra) => {
     checkin_fim: "23:59",
   });
 
-  r = await chamar("POST", "/api/ponto", { aluno_id: "aluno@teste.com" }, tokenAluno);
+  r = await chamar(
+    "POST",
+    "/api/ponto",
+    { aluno_id: "aluno@teste.com" },
+    tokenAluno,
+  );
   checar("check-in dentro da janela é aceito", r.status === 200, r.body);
   checar(
     "turma online não exige localização",
@@ -520,11 +576,7 @@ const checar = (nome, condicao, extra) => {
     { aluno_id: "presencial@teste.com" },
     tokenPresencial,
   );
-  checar(
-    "presencial bate ponto sem GPS",
-    r.status === 200,
-    r.body,
-  );
+  checar("presencial bate ponto sem GPS", r.status === 200, r.body);
 
   console.log("\n== WINDOW_CLOSE / WINDOW_OPEN ==");
 
@@ -551,25 +603,55 @@ const checar = (nome, condicao, extra) => {
 
   banco.configuracoes = [{ chave: "janela_ponto", valor: "WINDOW_CLOSE" }];
   r = await chamar("GET", "/api/cronograma/fullstack_online");
-  checar("WINDOW_CLOSE reportado", r.body.janelaPonto === "WINDOW_CLOSE", r.body.janelaPonto);
-  checar("WINDOW_CLOSE nao liga modo teste", r.body.modoTeste === false, r.body.modoTeste);
+  checar(
+    "WINDOW_CLOSE reportado",
+    r.body.janelaPonto === "WINDOW_CLOSE",
+    r.body.janelaPonto,
+  );
+  checar(
+    "WINDOW_CLOSE nao liga modo teste",
+    r.body.modoTeste === false,
+    r.body.modoTeste,
+  );
 
-  r = await chamar("POST", "/api/ponto", { aluno_id: "janela@teste.com" }, tokenJanela);
+  r = await chamar(
+    "POST",
+    "/api/ponto",
+    { aluno_id: "janela@teste.com" },
+    tokenJanela,
+  );
   checar("WINDOW_CLOSE bloqueia fora do horario", r.status === 403, r.body);
 
   banco.configuracoes = [{ chave: "janela_ponto", valor: "WINDOW_OPEN" }];
   await new Promise((r) => setTimeout(r, 5100));
   r = await chamar("GET", "/api/cronograma/fullstack_online");
-  checar("WINDOW_OPEN reportado", r.body.janelaPonto === "WINDOW_OPEN", r.body.janelaPonto);
-  checar("WINDOW_OPEN libera a interface", r.body.modoTeste === true, r.body.modoTeste);
+  checar(
+    "WINDOW_OPEN reportado",
+    r.body.janelaPonto === "WINDOW_OPEN",
+    r.body.janelaPonto,
+  );
+  checar(
+    "WINDOW_OPEN libera a interface",
+    r.body.modoTeste === true,
+    r.body.modoTeste,
+  );
 
-  r = await chamar("POST", "/api/ponto", { aluno_id: "janela@teste.com" }, tokenJanela);
+  r = await chamar(
+    "POST",
+    "/api/ponto",
+    { aluno_id: "janela@teste.com" },
+    tokenJanela,
+  );
   checar("WINDOW_OPEN aceita ponto sem dia nem hora", r.status === 200, r.body);
 
   banco.configuracoes = [{ chave: "janela_ponto", valor: "WINDOW_CLOSE" }];
   await new Promise((r) => setTimeout(r, 5100));
   r = await chamar("GET", "/api/cronograma/fullstack_online");
-  checar("volta a fechar ao trocar de novo", r.body.janelaPonto === "WINDOW_CLOSE", r.body.janelaPonto);
+  checar(
+    "volta a fechar ao trocar de novo",
+    r.body.janelaPonto === "WINDOW_CLOSE",
+    r.body.janelaPonto,
+  );
 
   console.log(
     "\n" + (falhas === 0 ? "TODOS OS TESTES PASSARAM" : falhas + " FALHA(S)"),
