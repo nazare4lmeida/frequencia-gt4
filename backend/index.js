@@ -288,6 +288,43 @@ app.post("/api/login", async (req, res) => {
     });
   }
 
+  // ==========================================
+  // LOGIN PROFESSOR / MONITOR (tabela professores)
+  // ==========================================
+  try {
+    const { data: profs } = await supabase
+      .from("professores")
+      .select("*")
+      .eq("email", emailFormatado);
+    if (profs && profs.length > 0) {
+      const prof = profs[0];
+      if (prof.ativo === false) {
+        return res.status(403).json({ error: "Cadastro inativo. Fale com a coordenação." });
+      }
+      if (prof.data_nascimento) {
+        const dbNasc = new Date(prof.data_nascimento).toISOString().split("T")[0];
+        if (dbNasc !== dataNascimento) {
+          return res.status(401).json({ error: "Data de nascimento incorreta." });
+        }
+      }
+      const token = jwt.sign(
+        { email: emailFormatado, role: "professor", tipo: prof.tipo || "professor", turma: prof.turma || null },
+        JWT_SECRET,
+        { expiresIn: "720h" },
+      );
+      return res.json({
+        nome: prof.nome || emailFormatado,
+        role: "professor",
+        tipo: prof.tipo || "professor",
+        turma: prof.turma || null,
+        email: emailFormatado,
+        token,
+      });
+    }
+  } catch (e) {
+    console.error("ERRO login professor:", e);
+  }
+
   try {
     const { data: alunos, error } = await supabase
       .from("alunos")

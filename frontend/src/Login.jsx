@@ -115,24 +115,10 @@ export default function Login({
               }}
             />
 
-            <select
-              className="input-modern"
-              value={form.formacao}
-              onChange={handleChange("formacao")}
-              style={{ appearance: "none" }}
-            >
-              <option value="">Selecione sua turma</option>
-              {turmasDisponiveis.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
-            </select>
-
             <button
               onClick={handleLogin}
               className="btn-ponto in"
-              disabled={!form.formacao}
+              disabled={!form.email || !form.dataNasc}
             >
               Entrar no Portal
             </button>
