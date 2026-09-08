@@ -136,11 +136,11 @@ export default function ProfessorHome({ user }) {
         ) : (
           <>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", margin: "16px 0" }}>
-              <div style={{ flex: 1, minWidth: 150, background: "#fff", border: "1px solid var(--border,#DBE5FA)", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ flex: 1, minWidth: 150, background: "#214d7d", border: "1px solid var(--border,#DBE5FA)", borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Check-in</div>
                 <div style={{ fontSize: 22, fontWeight: 700 }}>{hhmm(reg?.check_in)}</div>
               </div>
-              <div style={{ flex: 1, minWidth: 150, background: "#fff", border: "1px solid var(--border,#DBE5FA)", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ flex: 1, minWidth: 150, background: "#214d7d", border: "1px solid var(--border,#DBE5FA)", borderRadius: 10, padding: "12px 14px" }}>
                 <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Check-out</div>
                 <div style={{ fontSize: 22, fontWeight: 700 }}>{hhmm(reg?.check_out)}</div>
               </div>
@@ -215,11 +215,11 @@ export default function ProfessorHome({ user }) {
             ) : (
               <>
                 <div style={{ display: "flex", gap: 12, margin: "16px 0", flexWrap: "wrap" }}>
-                  <div style={{ flex: 1, minWidth: 120, background: "#fff", border: "1px solid #DBE5FA", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ flex: 1, minWidth: 120, background: "#214d7d", border: "1px solid #DBE5FA", borderRadius: 10, padding: "12px 14px" }}>
                     <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Alunos na turma</div>
                     <div style={{ fontSize: 22, fontWeight: 700 }}>{turma.total}</div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 120, background: "#fff", border: "1px solid #DBE5FA", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ flex: 1, minWidth: 120, background: "#214d7d", border: "1px solid #DBE5FA", borderRadius: 10, padding: "12px 14px" }}>
                     <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Presentes hoje</div>
                     <div style={{ fontSize: 22, fontWeight: 700, color: "#16A34A" }}>{turma.presentes_hoje}</div>
                   </div>
