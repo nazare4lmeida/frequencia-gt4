@@ -1581,6 +1581,154 @@ app.get("/api/chamada/lista", async (req, res) => {
   }
 });
 
+// ============================================================
+//  PONTO DO PROFESSOR / MONITOR (check-in/out + avaliacao) - P2
+// ============================================================
+
+// registro de hoje do professor (para saber se ja fez check-in/out)
+app.get("/api/professor/hoje", verificarToken, async (req, res) => {
+  try {
+    if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.user.email).toLowerCase();
+    const { data: hoje } = getBrasiliaTime();
+    const { data: reg } = await supabase
+      .from("presencas_professor").select("*")
+      .eq("professor_email", email).eq("data", hoje).maybeSingle();
+    // dados da turma (nome + se exige GPS)
+    const cronograma = await cronogramaDb.carregarCronograma(supabase);
+    const turma = req.user.turma ? cronogramaDb.getTurma(cronograma, req.user.turma) : null;
+    res.json({
+      data: hoje,
+      registro: reg || null,
+      turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede,
+        exigeLocalizacao: turma.modalidade === "presencial" &&
+          Number.isFinite(turma?.local?.latitude) && Number.isFinite(turma?.local?.longitude) &&
+          (turma?.local?.exige === true || EXIGIR_LOCALIZACAO) } : null,
+    });
+  } catch (err) {
+    console.error("ERRO professor/hoje:", err);
+    res.status(500).json({ error: "Erro ao carregar." });
+  }
+});
+
+// check-in / check-out do professor
+app.post("/api/professor/ponto", verificarToken, async (req, res) => {
+  try {
+    if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.user.email).toLowerCase();
+    const turmaId = req.user.turma || null;
+    const { tipo, latitude, longitude, engajamento, nivelamento, observacao } = req.body;
+    if (!["checkin", "checkout"].includes(tipo)) {
+      return res.status(400).json({ error: "Tipo invalido." });
+    }
+    const { data: hoje, hora: agora } = getBrasiliaTime();
+    const ts = `${hoje}T${agora}`;
+
+    // GPS: mesma regra dos alunos (valida contra a sede da turma, se exigir)
+    const cronograma = await cronogramaDb.carregarCronograma(supabase);
+    const turma = turmaId ? cronogramaDb.getTurma(cronograma, turmaId) : null;
+    const exigeLoc = turma && turma.modalidade === "presencial" &&
+      Number.isFinite(turma?.local?.latitude) && Number.isFinite(turma?.local?.longitude) &&
+      (turma?.local?.exige === true || EXIGIR_LOCALIZACAO || cronogramaDb.exigeLocalizacao(cronograma));
+
+    let lat = null, lng = null;
+    if (tipo === "checkin" && exigeLoc) {
+      lat = parseFloat(latitude); lng = parseFloat(longitude);
+      const val = validarLocalCheckin(lat, lng, turma);
+      if (!val.ok) {
+        return res.status(403).json({
+          error: "Check-in permitido somente na sede da sua turma" + (turma?.sede ? " (" + turma.sede + ")." : "."),
+          distancia: val.distancia,
+        });
+      }
+    }
+
+    // registro de hoje
+    const { data: reg } = await supabase
+      .from("presencas_professor").select("*")
+      .eq("professor_email", email).eq("data", hoje).maybeSingle();
+
+    if (tipo === "checkin") {
+      if (reg && reg.check_in) return res.status(400).json({ error: "Voce ja fez check-in hoje." });
+      const linha = { professor_email: email, turma: turmaId, data: hoje, check_in: ts,
+        checkin_latitude: lat, checkin_longitude: lng };
+      if (reg) await supabase.from("presencas_professor").update(linha).eq("id", reg.id);
+      else await supabase.from("presencas_professor").insert([linha]);
+      return res.json({ ok: true, tipo: "checkin", hora: agora });
+    }
+
+    // checkout: exige avaliacao
+    if (!reg || !reg.check_in) return res.status(400).json({ error: "Faca o check-in antes do check-out." });
+    if (reg.check_out) return res.status(400).json({ error: "Voce ja fez check-out hoje." });
+    const eng = parseInt(engajamento, 10);
+    if (!(eng >= 1 && eng <= 5) || !nivelamento) {
+      return res.status(400).json({ error: "Preencha a avaliacao da aula (engajamento e nivelamento)." });
+    }
+    await supabase.from("presencas_professor").update({
+      check_out: ts, engajamento: eng, nivelamento: String(nivelamento),
+      observacao: observacao ? String(observacao).slice(0, 1000) : null,
+    }).eq("id", reg.id);
+    return res.json({ ok: true, tipo: "checkout", hora: agora });
+  } catch (err) {
+    console.error("ERRO professor/ponto:", err);
+    res.status(500).json({ error: "Erro ao registrar o ponto." });
+  }
+});
+
+// frequencia dos alunos da turma do professor - P3
+app.get("/api/professor/turma", verificarToken, async (req, res) => {
+  try {
+    if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const turmaId = req.user.turma || null;
+    if (!turmaId) return res.json({ turma: null, alunos: [], presentes_hoje: 0, total: 0 });
+
+    const { data: hoje } = getBrasiliaTime();
+    const cronograma = await cronogramaDb.carregarCronograma(supabase);
+    const turma = cronogramaDb.getTurma(cronograma, turmaId);
+
+    const { data: alunos } = await supabase
+      .from("alunos").select("email, nome").eq("formacao", turmaId);
+    const emails = (alunos || []).map((a) => a.email);
+
+    let presencas = [];
+    if (emails.length) {
+      const { data: pres } = await supabase
+        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails);
+      presencas = pres || [];
+    }
+
+    // agrega por aluno: dias distintos com check-in + se presente hoje
+    const porAluno = {};
+    for (const p of presencas) {
+      if (!p.check_in) continue;
+      const e = p.aluno_email;
+      if (!porAluno[e]) porAluno[e] = { dias: new Set(), hoje: false };
+      porAluno[e].dias.add(String(p.data).slice(0, 10));
+      if (String(p.data).slice(0, 10) === hoje) porAluno[e].hoje = true;
+    }
+
+    const lista = (alunos || [])
+      .map((a) => ({
+        nome: a.nome || a.email,
+        email: a.email,
+        presencas: porAluno[a.email] ? porAluno[a.email].dias.size : 0,
+        presente_hoje: porAluno[a.email] ? porAluno[a.email].hoje : false,
+      }))
+      .sort((x, y) => String(x.nome).localeCompare(String(y.nome)));
+
+    res.json({
+      turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede } : { id: turmaId, nome: turmaId },
+      data: hoje,
+      total: lista.length,
+      presentes_hoje: lista.filter((a) => a.presente_hoje).length,
+      alunos: lista,
+    });
+  } catch (err) {
+    console.error("ERRO professor/turma:", err);
+    res.status(500).json({ error: "Erro ao carregar a turma." });
+  }
+});
+
 app.get("/api/health", (_, res) =>
   res.json({ status: "online", modoTeste: MODO_TESTE }),
 );

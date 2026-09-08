@@ -22,6 +22,7 @@ import Perfil from "./Perfil";
 import { fetchComToken } from "./Api";
 import GestaoRapida from "./GestaoRapida";
 import HomeAdmin from "./HomeAdmin";
+import ProfessorHome from "./ProfessorHome";
 import Cronograma from "./Cronograma";
 
 // Libera check-in/check-out em qualquer dia e horário para gravação de vídeo
@@ -527,27 +528,7 @@ export default function App() {
       ) : view === "limpeza" && user.role === "admin" ? (
         <GestaoRapida user={user} setView={setView} />
       ) : user.role === "professor" ? (
-        /* HOME DO PROFESSOR / MONITOR (P1b) */
-        <main className="aluno-main-wrapper" style={{ maxWidth: "800px", margin: "0 auto", padding: "20px" }}>
-          <div className="aula-card shadow-card" style={{ width: "100%", boxSizing: "border-box", marginBottom: "25px" }}>
-            <div className="card-header-info">
-              <h2 style={{ color: "var(--text-dim)", margin: 0 }}>
-                Olá, {user.nome}!
-              </h2>
-              <span className="user-badge" style={{ fontSize: "0.8rem", padding: "2px 10px" }}>
-                {user.tipo === "monitor" ? "Monitor" : "Professor"}
-                {user.turma ? " · " + user.turma : ""}
-              </span>
-            </div>
-            <div className="info-banner" style={{ margin: "18px 0", borderLeft: "5px solid #2563EB" }}>
-              <b>Acesso de {user.tipo === "monitor" ? "monitor" : "professor"} ativo.</b>
-              <p style={{ marginTop: 6 }}>
-                Em breve, aqui você vai <b>registrar sua presença na aula</b> (com avaliação da turma)
-                e ver a <b>frequência dos alunos</b> da sua turma.
-              </p>
-            </div>
-          </div>
-        </main>
+        <ProfessorHome user={user} />
       ) : (
         /* 4. LAYOUT EXCLUSIVO DO ALUNO (SÓ APARECE SE NÃO FOR ADMIN) */
         <main
