@@ -1588,8 +1588,8 @@ app.get("/api/chamada/lista", async (req, res) => {
 // registro de hoje do professor (para saber se ja fez check-in/out)
 app.get("/api/professor/hoje", verificarToken, async (req, res) => {
   try {
-    if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
-    const email = String(req.user.email).toLowerCase();
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.usuarioLogado.email).toLowerCase();
     const { data: hoje } = getBrasiliaTime();
     let reg = null;
     try {
@@ -1602,7 +1602,7 @@ app.get("/api/professor/hoje", verificarToken, async (req, res) => {
     }
     // dados da turma (nome + se exige GPS)
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
-    const turma = req.user.turma ? cronogramaDb.getTurma(cronograma, req.user.turma) : null;
+    const turma = req.usuarioLogado.turma ? cronogramaDb.getTurma(cronograma, req.usuarioLogado.turma) : null;
     res.json({
       data: hoje,
       registro: reg || null,
@@ -1620,9 +1620,9 @@ app.get("/api/professor/hoje", verificarToken, async (req, res) => {
 // check-in / check-out do professor
 app.post("/api/professor/ponto", verificarToken, async (req, res) => {
   try {
-    if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
-    const email = String(req.user.email).toLowerCase();
-    const turmaId = req.user.turma || null;
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.usuarioLogado.email).toLowerCase();
+    const turmaId = req.usuarioLogado.turma || null;
     const { tipo, latitude, longitude, engajamento, nivelamento, observacao } = req.body;
     if (!["checkin", "checkout"].includes(tipo)) {
       return res.status(400).json({ error: "Tipo invalido." });
@@ -1684,8 +1684,8 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
 // frequencia dos alunos da turma do professor - P3
 app.get("/api/professor/turma", verificarToken, async (req, res) => {
   try {
-    if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
-    const turmaId = req.user.turma || null;
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const turmaId = req.usuarioLogado.turma || null;
     if (!turmaId) return res.json({ turma: null, alunos: [], presentes_hoje: 0, total: 0 });
 
     const { data: hoje } = getBrasiliaTime();
