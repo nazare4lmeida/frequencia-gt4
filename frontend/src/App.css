@@ -1713,3 +1713,26 @@ body:not(.dark) code {
 .aula-card div[style*="color:#16A34A"] {
   color: #4ade80 !important;
 }
+
+/* Força a remoção do fundo branco inline de qualquer card/caixa */
+.aula-card [style*="background: #fff"],
+.aula-card [style*="background:#fff"],
+.aula-card [style*="background: white"],
+.aula-card [style*="background:white"] {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Ajusta a cor das letras dentro dos cards para branco visível */
+.aula-card [style*="background: #fff"] *,
+.aula-card [style*="background:#fff"] *,
+.aula-card [style*="background: white"] *,
+.aula-card [style*="background:white"] * {
+  color: #ffffff !important;
+}
+
+/* Mantém o número do "Presentes hoje" em verde */
+.aula-card [style*="color: #16A34A"],
+.aula-card [style*="color:#16A34A"] {
+  color: #4ade80 !important;
+}
