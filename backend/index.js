@@ -1591,9 +1591,15 @@ app.get("/api/professor/hoje", verificarToken, async (req, res) => {
     if (req.user.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
     const email = String(req.user.email).toLowerCase();
     const { data: hoje } = getBrasiliaTime();
-    const { data: reg } = await supabase
-      .from("presencas_professor").select("*")
-      .eq("professor_email", email).eq("data", hoje).maybeSingle();
+    let reg = null;
+    try {
+      const r = await supabase
+        .from("presencas_professor").select("*")
+        .eq("professor_email", email).eq("data", hoje).maybeSingle();
+      reg = r.data || null;
+    } catch (e) {
+      console.error("presencas_professor indisponivel (rode o SQL 12):", e?.message || e);
+    }
     // dados da turma (nome + se exige GPS)
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
     const turma = req.user.turma ? cronogramaDb.getTurma(cronograma, req.user.turma) : null;
