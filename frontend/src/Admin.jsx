@@ -29,6 +29,12 @@ export default function Admin({ user }) {
     totalAlunos: 0,
   });
   const [carregando, setCarregando] = useState(false);
+  const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
+
+  // Nome real da turma, resolvido pelo cronograma do backend (Geração Tech),
+  // com fallback para a lista estática só se a busca ainda não voltou.
+  const nomeTurma = (id) =>
+    turmasDisponiveis.find((t) => t.id === id)?.nome || getNomeCurto(id);
 
   // Estados para o Modal de Detalhes
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
@@ -48,6 +54,22 @@ export default function Admin({ user }) {
     check_in: "18:30",
     check_out: "22:30",
   });
+
+  // 0. Carregar a lista real de turmas (sincronizada do Geração Tech)
+  useEffect(() => {
+    const carregarTurmas = async () => {
+      try {
+        const res = await fetchComToken("/admin/turmas");
+        if (res.ok) {
+          const data = await res.json();
+          setTurmasDisponiveis(data.turmas || []);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar turmas:", err);
+      }
+    };
+    carregarTurmas();
+  }, []);
 
   // 1. Carregar estatísticas gerais da turma
   useEffect(() => {
@@ -395,7 +417,7 @@ export default function Admin({ user }) {
                 <strong>Turma:</strong>{" "}
                 {filtroTurma === "todos"
                   ? "Todas as formações do Geração Tech 4.0"
-                  : getNomeCurto(filtroTurma)}
+                  : nomeTurma(filtroTurma)}
               </p>
               <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
                 <div
@@ -497,11 +519,13 @@ export default function Admin({ user }) {
             onChange={(e) => setFiltroTurma(e.target.value)}
           >
             <option value="todos">Todas as Turmas</option>
-            {FORMACOES.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.nome}
-              </option>
-            ))}
+            {(turmasDisponiveis.length ? turmasDisponiveis : FORMACOES).map(
+              (t) => (
+                <option key={t.id} value={t.id}>
+                  {t.nome}
+                </option>
+              ),
+            )}
           </select>
         </div>
 
@@ -783,7 +807,7 @@ export default function Admin({ user }) {
                             color: "var(--text-dim)",
                           }}
                         >
-                          {getNomeCurto(aluno.formacao)}
+                          {aluno.turma_nome || getNomeCurto(aluno.formacao)}
                         </div>
                       </td>
                       <td style={{ fontSize: "0.8rem" }}>{aluno.email}</td>

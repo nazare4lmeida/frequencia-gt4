@@ -9,6 +9,7 @@ import {
   getProximasAulas,
   hojeBrasilia,
 } from "./Constants";
+import { fetchComToken } from "./Api";
 
 export default function HomeAdmin({ user }) {
   const [stats, setStats] = useState({
@@ -20,6 +21,36 @@ export default function HomeAdmin({ user }) {
 
   const [alunosNoPredio, setAlunosNoPredio] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
+
+  // Curso (fullstack/ia/fullcycle) a partir da turma real, com fallback
+  // pela lista estática e, na falta dela, por palavras-chave no nome.
+  const inferirCurso = (nome = "") => {
+    const n = nome.toLowerCase();
+    if (n.includes("ia generativa") || n.includes("inteligência artificial"))
+      return "ia";
+    if (n.includes("fullcycle") || n.includes("full cycle")) return "fullcycle";
+    if (n.includes("full stack") || n.includes("fullstack")) return "fullstack";
+    return null;
+  };
+  const cursoDoAluno = (aluno) =>
+    getFormacao(aluno.formacao)?.curso || inferirCurso(aluno.turma_nome);
+
+  // Carrega a lista real de turmas (sincronizada do Geração Tech)
+  useEffect(() => {
+    const carregarTurmas = async () => {
+      try {
+        const res = await fetchComToken("/admin/turmas");
+        if (res.ok) {
+          const data = await res.json();
+          setTurmasDisponiveis(data.turmas || []);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar turmas:", err);
+      }
+    };
+    carregarTurmas();
+  }, []);
 
   // Próxima aula considerando todas as turmas ativas do Geração Tech 4.0
   const proximaISO = FORMACOES.map((f) => getProximasAulas(f.id, 1)[0])
@@ -100,9 +131,7 @@ export default function HomeAdmin({ user }) {
     { curso: "fullcycle", rotulo: "FullCycle", cor: "#6366f1" },
   ].map((item) => ({
     ...item,
-    total: alunosNoPredio.filter(
-      (a) => getFormacao(a.formacao)?.curso === item.curso,
-    ).length,
+    total: alunosNoPredio.filter((a) => cursoDoAluno(a) === item.curso).length,
   }));
 
   return (
@@ -311,7 +340,7 @@ export default function HomeAdmin({ user }) {
                     <div
                       style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}
                     >
-                      {getNomeCurto(aluno.formacao)}
+                      {aluno.turma_nome || getNomeCurto(aluno.formacao)}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>

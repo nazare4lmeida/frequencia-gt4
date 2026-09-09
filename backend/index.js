@@ -662,6 +662,7 @@ app.get(
         const emailAlu = aluno.email?.trim().toLowerCase();
         const turmaAluno = aluno.formacao;
         const calendarioTurma = cronogramaDb.getAulas(cronograma, turmaAluno);
+        const turmaInfo = cronogramaDb.getTurma(cronograma, turmaAluno);
 
         const aulasOcorridas = calendarioTurma.filter(
           (dataAula) => dataAula <= hoje,
@@ -685,6 +686,7 @@ app.get(
 
         return {
           ...aluno,
+          turma_nome: turmaInfo?.nome || "Não informada",
           total_presencas: presencasConfirmadas,
           total_faltas: faltasReais,
         };

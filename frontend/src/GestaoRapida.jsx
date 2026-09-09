@@ -14,6 +14,12 @@ export default function GestaoRapida({ user, setView }) {
   const [filtroTurma, setFiltroTurma] = useState("todos");
   const [carregando, setCarregando] = useState(true);
   const [statusSalva, setStatusSalva] = useState({});
+  const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
+
+  // Nome/estatísticas reais da turma, resolvidos pelo cronograma do
+  // backend (Geração Tech). Cai na lista estática só como reserva.
+  const turmaInfo = (id) => turmasDisponiveis.find((t) => t.id === id);
+  const nomeTurma = (id) => turmaInfo(id)?.nome || getNomeCurto(id);
 
   // --- ACRÉSCIMO: ESTADOS PARA O MODAL DE GERENCIAMENTO ---
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
@@ -33,7 +39,20 @@ export default function GestaoRapida({ user, setView }) {
 
   useEffect(() => {
     carregarTodos();
+    carregarTurmas();
   }, []);
+
+  const carregarTurmas = async () => {
+    try {
+      const res = await fetchComToken("/admin/turmas");
+      if (res.ok) {
+        const data = await res.json();
+        setTurmasDisponiveis(data.turmas || []);
+      }
+    } catch (err) {
+      console.error("Erro ao carregar turmas:", err);
+    }
+  };
 
   const carregarTodos = async () => {
     setCarregando(true);
@@ -162,7 +181,7 @@ export default function GestaoRapida({ user, setView }) {
     const linhas = faltosos
       .map((a) => {
         const faltas = a.total_faltas || 0;
-        return `${a.nome};${a.email};${getNomeCurto(a.formacao)};${a.total_presencas || 0};${faltas}`;
+        return `${a.nome};${a.email};${a.turma_nome || nomeTurma(a.formacao)};${a.total_presencas || 0};${faltas}`;
       })
       .join("\n");
 
@@ -204,7 +223,9 @@ export default function GestaoRapida({ user, setView }) {
             <p style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
               {filtroTurma === "todos"
                 ? "Presenças e faltas são contadas pelo calendário de cada turma."
-                : `${getNomeCurto(filtroTurma)}: ${getAulasOcorridas(filtroTurma).length} de ${getTotalAulas(filtroTurma)} aulas já ocorreram.`}
+                : turmaInfo(filtroTurma)
+                  ? `${nomeTurma(filtroTurma)}: ${turmaInfo(filtroTurma).aulasOcorridas} de ${turmaInfo(filtroTurma).totalAulas} aulas já ocorreram.`
+                  : `${nomeTurma(filtroTurma)}: ${getAulasOcorridas(filtroTurma).length} de ${getTotalAulas(filtroTurma)} aulas já ocorreram.`}
             </p>
           </div>
 
@@ -223,11 +244,13 @@ export default function GestaoRapida({ user, setView }) {
               onChange={(e) => setFiltroTurma(e.target.value)}
             >
               <option value="todos">Todas as Formações</option>
-              {FORMACOES.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.nome}
-                </option>
-              ))}
+              {(turmasDisponiveis.length ? turmasDisponiveis : FORMACOES).map(
+                (t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nome}
+                  </option>
+                ),
+              )}
             </select>
             <button onClick={() => setView("admin")} className="btn-secondary">
               Voltar
@@ -267,7 +290,7 @@ export default function GestaoRapida({ user, setView }) {
                         textTransform: "uppercase",
                       }}
                     >
-                      {getNomeCurto(aluno.formacao)}
+                      {aluno.turma_nome || nomeTurma(aluno.formacao)}
                     </div>
                   </td>
                   <td
