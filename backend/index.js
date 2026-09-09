@@ -132,7 +132,7 @@ const validarJanelaPonto = (cronograma, formacao, tipo, dataISO, horaTexto) => {
       ok: false,
       motivo: proxima
         ? `Hoje não há aula ao vivo da sua turma. A próxima é em ${proxima.split("-").reverse().join("/")}.`
-        : "Hoje não há aula ao vivo da sua turma. Tente outro dia.",
+        : "Hoje não há aula ao vivo da sua turma.",
     };
   }
 
@@ -341,19 +341,11 @@ app.post("/api/login", async (req, res) => {
     let aluno;
 
     if (!alunos || alunos.length === 0) {
-      const { data: novoAluno, error: insertError } = await supabase
-        .from("alunos")
-        .insert([
-          {
-            email: emailFormatado,
-            data_nascimento: dataNascimento,
-            formacao: formacao,
-          },
-        ])
-        .select();
-
-      if (insertError) throw insertError;
-      aluno = novoAluno[0];
+      // Login restrito: so entra quem esta na base (aprovado + matriculado,
+      // sincronizado do Geracao Tech). Nao cria cadastro novo.
+      return res.status(403).json({
+        error: "Cadastro nao encontrado. So conseguem acessar os alunos aprovados e matriculados, com os dados usados na inscricao. Em caso de duvida, procure a coordenacao.",
+      });
     } else {
       aluno = alunos[0];
 
@@ -365,13 +357,13 @@ app.post("/api/login", async (req, res) => {
         if (dataBancoSrt !== dataNascimento) {
           return res
             .status(401)
-            .json({ error: "Data de nascimento incorreta." });
+            .json({ error: "Data de nascimento incorreta. Use a data que voce informou na inscricao." });
         }
       }
 
       if (aluno.formacao && formacao && aluno.formacao !== formacao) {
         return res.status(403).json({
-          error: `Você já está registrado na formação ${aluno.formacao}. Não é permitido acesso duplicado em outra turma.`,
+          error: `Voce ja esta registrado na formacao ${aluno.formacao}.`,
         });
       }
 
@@ -487,135 +479,50 @@ app.post("/api/ponto", verificarToken, async (req, res) => {
     }
 
     if (!pontoExistente) {
-      const janelaCheckIn = validarJanelaPonto(
-        cronograma,
-        formacaoAluno,
-        "check_in",
-        hoje,
-        agora,
-      );
-
-      if (!janelaCheckIn.ok) {
-        return res.status(403).json({ error: janelaCheckIn.motivo });
-      }
-
-      // CHAMADA POR QR: se a turma exige QR, o aluno precisa enviar um qr_token
-      // valido (o token atual, nao expirado) da sessao de hoje daquela turma.
-      const turmaQr = await supabase
-        .from("turmas").select("exige_qr").eq("id", formacaoAluno).maybeSingle();
-      if (turmaQr?.data?.exige_qr) {
-        const qrToken = (req.body.qr_token || "").toString().trim();
-        if (!qrToken) {
-          return res.status(403).json({ error: "Escaneie o QR code da chamada para marcar presenca." });
-        }
-        const { data: sessQr } = await supabase
-          .from("qr_sessoes").select("token, token_expira")
-          .eq("turma_id", formacaoAluno).eq("data", hoje).maybeSingle();
-        const valido = sessQr && sessQr.token === qrToken &&
-          new Date(sessQr.token_expira).getTime() + 10000 >= Date.now(); // 10s de folga
-        if (!valido) {
-          return res.status(403).json({ error: "QR code expirado. Escaneie o QR atual mostrado pelo professor." });
-        }
-      }
-
-      // Turmas online não têm endereço de aula. Para presenciais, o GPS é
-      // exigido quando a turma tem coordenadas de sede E está com exige_local
-      // ligado (por turma). Mantém o override global antigo por compatibilidade.
       const turmaAluno = cronogramaDb.getTurma(cronograma, formacaoAluno);
+
+      // HORARIO: informativo (nao bloqueia). Guarda se marcou dentro do horario.
+      const janelaCheckIn = validarJanelaPonto(cronograma, formacaoAluno, "check_in", hoje, agora);
+      const dentroHorario = !!janelaCheckIn.ok;
+
+      // LOCALIZACAO: informativa (nao bloqueia). Se veio coordenada e a turma
+      // tem sede, calcula "estava na sede?"; se o aluno negou, fica null.
+      let latNum = null, lngNum = null, naSede = null, distancia = null;
       const temCoordSede =
         Number.isFinite(turmaAluno?.local?.latitude) &&
         Number.isFinite(turmaAluno?.local?.longitude);
-      const exigeLocalizacao =
-        turmaAluno?.modalidade === "presencial" &&
-        temCoordSede &&
-        (turmaAluno?.local?.exige === true);
-
-      if (!exigeLocalizacao) {
-        const { data: novoPontoOnline, error: insErroOnline } = await supabase
-          .from("presencas")
-          .insert([
-            {
-              aluno_email: emailBusca,
-              data: hoje,
-              check_in: timestampCompleto,
-              checkin_local_valido: true,
-            },
-          ])
-          .select();
-
-        if (insErroOnline) {
-          console.error("ERRO insert presencas (online):", insErroOnline);
-          return res.status(500).json({
-            error: insErroOnline.message || "Erro ao inserir check-in.",
-          });
+      if (latitude !== undefined && longitude !== undefined) {
+        const a = Number(latitude), b = Number(longitude);
+        if (Number.isFinite(a) && Number.isFinite(b)) {
+          latNum = a; lngNum = b;
+          if (temCoordSede && turmaAluno?.modalidade === "presencial") {
+            const v = validarLocalCheckin(a, b, turmaAluno);
+            naSede = !!v.ok; distancia = v.distancia;
+          }
         }
-
-        return res.json({
-          msg: "Check-in realizado com sucesso!",
-          ponto: novoPontoOnline[0],
-        });
       }
-
-      if (latitude === undefined || longitude === undefined) {
-        return res.status(400).json({
-          error:
-            "Localização não recebida. Ative a localização e tente novamente.",
-        });
-      }
-
-      const latitudeNum = Number(latitude);
-      const longitudeNum = Number(longitude);
-
-      if (!Number.isFinite(latitudeNum) || !Number.isFinite(longitudeNum)) {
-        return res.status(400).json({
-          error: "Localização inválida.",
-        });
-      }
-
-      const validacaoLocal = validarLocalCheckin(
-        latitudeNum,
-        longitudeNum,
-        turmaAluno,
-      );
-
-      if (!validacaoLocal.ok) {
-        return res.status(403).json({
-          error:
-            "Check-in permitido somente na sede da sua turma" +
-            (turmaAluno?.sede ? " (" + turmaAluno.sede + ")." : "."),
-          distancia: validacaoLocal.distancia,
-        });
-      }
-
-      const payloadInsert = {
-        aluno_email: emailBusca,
-        data: hoje,
-        check_in: timestampCompleto,
-        checkin_latitude: latitudeNum,
-        checkin_longitude: longitudeNum,
-        checkin_distancia_metros: validacaoLocal.distancia,
-        checkin_local_valido: true,
-      };
 
       const { data: novoPonto, error: insError } = await supabase
         .from("presencas")
-        .insert([payloadInsert])
+        .insert([{
+          aluno_email: emailBusca,
+          data: hoje,
+          check_in: timestampCompleto,
+          checkin_latitude: latNum,
+          checkin_longitude: lngNum,
+          checkin_distancia_metros: distancia,
+          checkin_local_valido: naSede,
+          checkin_no_horario: dentroHorario,
+        }])
         .select();
 
       if (insError) {
         console.error("ERRO insert presencas:", insError);
-        return res.status(500).json({
-          error: insError.message || "Erro ao inserir check-in.",
-          details: insError,
-        });
+        return res.status(500).json({ error: insError.message || "Erro ao inserir check-in.", details: insError });
       }
 
-      return res.json({
-        msg: "Check-in realizado com sucesso!",
-        ponto: novoPonto[0],
-      });
+      return res.json({ msg: "Check-in realizado com sucesso!", ponto: novoPonto[0] });
     }
-
     if (pontoExistente.check_out) {
       return res.json({ msg: "Você já concluiu sua presença de hoje." });
     }
@@ -1814,6 +1721,64 @@ app.post("/api/professor/presenca", verificarToken, async (req, res) => {
   } catch (err) {
     console.error("ERRO professor/presenca:", err);
     res.status(500).json({ error: "Erro ao salvar a presenca." });
+  }
+});
+
+// ============================================================
+//  JUSTIFICATIVA DE FALTA (aluno) - Fase 2
+// ============================================================
+
+// aluno envia uma justificativa (motivo + documento opcional em base64)
+app.post("/api/justificativa", verificarToken, async (req, res) => {
+  try {
+    if (req.usuarioLogado.role !== "aluno") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.usuarioLogado.email).toLowerCase();
+    const { data, motivo, documento, documento_nome, documento_tipo } = req.body;
+    if (!data || !motivo || String(motivo).trim().length < 3) {
+      return res.status(400).json({ error: "Informe a data e o motivo da falta." });
+    }
+    // limite do documento: ~2MB em base64 (2.8M chars)
+    if (documento && String(documento).length > 2_800_000) {
+      return res.status(400).json({ error: "Documento muito grande (limite de 2 MB)." });
+    }
+    // turma do aluno
+    const { data: al } = await supabase.from("alunos").select("formacao").eq("email", email).maybeSingle();
+    const linha = {
+      aluno_email: email,
+      turma: al?.formacao || null,
+      data: String(data).slice(0, 10),
+      motivo: String(motivo).slice(0, 2000),
+      documento: documento || null,
+      documento_nome: documento_nome ? String(documento_nome).slice(0, 200) : null,
+      documento_tipo: documento_tipo ? String(documento_tipo).slice(0, 100) : null,
+      status: "pendente",
+    };
+    // upsert por (aluno_email, data): reenviar substitui
+    const { data: existe } = await supabase
+      .from("justificativas").select("id").eq("aluno_email", email).eq("data", linha.data).maybeSingle();
+    if (existe) await supabase.from("justificativas").update(linha).eq("id", existe.id);
+    else await supabase.from("justificativas").insert([linha]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERRO justificativa:", err);
+    res.status(500).json({ error: "Erro ao enviar a justificativa." });
+  }
+});
+
+// aluno ve as proprias justificativas (sem o base64, so metadados)
+app.get("/api/justificativas/minhas", verificarToken, async (req, res) => {
+  try {
+    if (req.usuarioLogado.role !== "aluno") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.usuarioLogado.email).toLowerCase();
+    const { data } = await supabase
+      .from("justificativas")
+      .select("data, motivo, documento_nome, status, criado_em")
+      .eq("aluno_email", email)
+      .order("data", { ascending: false });
+    res.json({ ok: true, itens: data || [] });
+  } catch (err) {
+    console.error("ERRO justificativas/minhas:", err);
+    res.status(500).json({ error: "Erro ao carregar." });
   }
 });
 

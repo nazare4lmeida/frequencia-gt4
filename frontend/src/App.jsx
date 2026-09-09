@@ -23,6 +23,7 @@ import { fetchComToken } from "./Api";
 import GestaoRapida from "./GestaoRapida";
 import HomeAdmin from "./HomeAdmin";
 import ProfessorHome from "./ProfessorHome";
+import JustificarFalta from "./JustificarFalta";
 import Cronograma from "./Cronograma";
 
 // Libera check-in/check-out em qualquer dia e horário para gravação de vídeo
@@ -900,6 +901,8 @@ export default function App() {
               </table>
             </div>
           </div>
+
+          <JustificarFalta />
         </main>
       )}
 
