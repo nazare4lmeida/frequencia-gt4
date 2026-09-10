@@ -256,6 +256,18 @@ app.post("/api/login", async (req, res) => {
 
   const emailFormatado = email.trim().toLowerCase();
 
+  // normaliza data de nascimento para AAAA-MM-DD (aceita AAAA-MM-DD e DD/MM/AAAA)
+  const normData = (x) => {
+    if (!x) return "";
+    const t = String(x).trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+    const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (m) return m[3] + "-" + m[2] + "-" + m[1];
+    const d = new Date(t);
+    return isNaN(d) ? t : d.toISOString().split("T")[0];
+  };
+  const dataNascNorm = normData(dataNascimento);
+
   // A formação precisa ser uma turma cadastrada e ativa
   if (formacao) {
     const cronogramaLogin = await cronogramaDb.carregarCronograma(supabase);
@@ -302,8 +314,8 @@ app.post("/api/login", async (req, res) => {
         return res.status(403).json({ error: "Cadastro inativo. Fale com a coordenação." });
       }
       if (prof.data_nascimento) {
-        const dbNasc = new Date(prof.data_nascimento).toISOString().split("T")[0];
-        if (dbNasc !== dataNascimento) {
+        const dbNasc = normData(prof.data_nascimento);
+        if (dbNasc !== dataNascNorm) {
           return res.status(401).json({ error: "Data de nascimento incorreta." });
         }
       }
@@ -350,11 +362,9 @@ app.post("/api/login", async (req, res) => {
       aluno = alunos[0];
 
       if (aluno.data_nascimento) {
-        const dataBancoSrt = new Date(aluno.data_nascimento)
-          .toISOString()
-          .split("T")[0];
+        const dataBancoSrt = normData(aluno.data_nascimento);
 
-        if (dataBancoSrt !== dataNascimento) {
+        if (dataBancoSrt !== dataNascNorm) {
           return res
             .status(401)
             .json({ error: "Data de nascimento incorreta. Use a data que voce informou na inscricao." });
