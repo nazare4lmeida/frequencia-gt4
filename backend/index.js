@@ -1347,8 +1347,10 @@ app.get("/api/cronograma", async (_, res) => {
       periodo: PERIODO_LETIVO,
       modoTeste: MODO_TESTE,
       janelaPonto: cronograma.config?.janela_ponto || "WINDOW_CLOSE",
-      exigeLocalizacao:
-        (turma?.local?.exige === true),
+      // Este endpoint lista TODAS as turmas, então não existe uma turma única
+      // aqui. A conferência de local é decidida por turma em /api/cronograma/:formacao.
+      // Expomos só a flag global do servidor.
+      exigeLocalizacao: EXIGIR_LOCALIZACAO,
       origem: cronograma.origem,
       turmas: [...cronograma.turmas.values()]
         .filter((t) => t.ativa)
