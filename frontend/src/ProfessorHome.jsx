@@ -32,7 +32,7 @@ export default function ProfessorHome({ user }) {
   };
   useEffect(() => { if (tab === "historico" && !hist) carregarHist(); }, [tab]);
 
-  const hhmm = (ts) => (ts ? new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--");
+  const hhmm = (ts) => (ts ? new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" }) : "--:--");
   const dLabel = (iso) => {
     if (!iso) return "";
     const [a, m, d] = iso.split("-");

@@ -882,16 +882,12 @@ export default function App() {
                         </td>
                         <td>
                           {h.check_in
-                            ? h.check_in.includes("T")
-                              ? h.check_in.split("T")[1].substring(0, 5)
-                              : h.check_in.substring(0, 5)
+                            ? new Date(h.check_in).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" })
                             : "--:--"}
                         </td>
                         <td>
                           {h.check_out
-                            ? h.check_out.includes("T")
-                              ? h.check_out.split("T")[1].substring(0, 5)
-                              : h.check_out.substring(0, 5)
+                            ? new Date(h.check_out).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" })
                             : "--:--"}
                         </td>
                       </tr>

@@ -447,7 +447,7 @@ app.post("/api/ponto", verificarToken, async (req, res) => {
     }
 
     const { data: hoje, hora: agora } = getBrasiliaTime();
-    const timestampCompleto = `${hoje}T${agora}`;
+    const timestampCompleto = `${hoje}T${agora}-03:00`;
     const emailBusca = aluno_id.trim().toLowerCase();
 
     // Precisamos da formação para saber os dias e as janelas de horário
@@ -766,7 +766,7 @@ app.post(
     const montarTimestamp = (valorHora) => {
       if (!valorHora) return null;
       if (valorHora.includes("T")) return valorHora;
-      return `${data}T${valorHora}:00`;
+      return `${data}T${valorHora}:00-03:00`;
     };
 
     try {
@@ -1567,7 +1567,7 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
       return res.status(400).json({ error: "Tipo invalido." });
     }
     const { data: hoje, hora: agora } = getBrasiliaTime();
-    const ts = `${hoje}T${agora}`;
+    const ts = `${hoje}T${agora}-03:00`;
 
     // GPS: mesma regra dos alunos (valida contra a sede da turma, se exigir)
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
@@ -1723,9 +1723,9 @@ app.post("/api/professor/presenca", verificarToken, async (req, res) => {
       const { data: existe } = await supabase
         .from("presencas").select("id, check_in").eq("aluno_email", email).eq("data", dia).maybeSingle();
       if (!existe) {
-        await supabase.from("presencas").insert([{ aluno_email: email, data: dia, check_in: `${dia}T12:00:00` }]);
+        await supabase.from("presencas").insert([{ aluno_email: email, data: dia, check_in: `${dia}T12:00:00-03:00` }]);
       } else if (!existe.check_in) {
-        await supabase.from("presencas").update({ check_in: `${dia}T12:00:00` }).eq("id", existe.id);
+        await supabase.from("presencas").update({ check_in: `${dia}T12:00:00-03:00` }).eq("id", existe.id);
       }
     } else {
       // desmarca: remove o registro do dia
