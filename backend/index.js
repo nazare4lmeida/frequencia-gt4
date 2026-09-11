@@ -1796,6 +1796,23 @@ app.get("/api/justificativas/minhas", verificarToken, async (req, res) => {
   }
 });
 
+// historico do proprio professor (check-ins, correcoes) - todas as turmas/datas
+app.get("/api/professor/meus-pontos", verificarToken, async (req, res) => {
+  try {
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
+    const email = String(req.usuarioLogado.email).toLowerCase();
+    const { data } = await supabase
+      .from("presencas_professor")
+      .select("data, turma, check_in, check_out, engajamento, nivelamento, corrigido, origem")
+      .eq("professor_email", email)
+      .order("data", { ascending: false });
+    res.json({ ok: true, pontos: data || [] });
+  } catch (err) {
+    console.error("ERRO professor/meus-pontos:", err);
+    res.status(500).json({ error: "Erro ao carregar o historico." });
+  }
+});
+
 app.get("/api/health", (_, res) =>
   res.json({ status: "online", modoTeste: MODO_TESTE }),
 );

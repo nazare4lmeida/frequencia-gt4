@@ -18,6 +18,19 @@ export default function ProfessorHome({ user }) {
   const [carregandoRel, setCarregandoRel] = useState(false);
   const [dataSel, setDataSel] = useState("");
   const [salvandoCpf, setSalvandoCpf] = useState("");
+  const [hist, setHist] = useState(null);
+  const [carregandoHist, setCarregandoHist] = useState(false);
+
+  const carregarHist = async () => {
+    setCarregandoHist(true);
+    try {
+      const res = await fetchComToken("/professor/meus-pontos", "GET");
+      const d = await res.json();
+      if (res.ok) setHist(d.pontos || []);
+    } catch { /* silencioso */ }
+    setCarregandoHist(false);
+  };
+  useEffect(() => { if (tab === "historico" && !hist) carregarHist(); }, [tab]);
 
   const hhmm = (ts) => (ts ? new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "--:--");
   const dLabel = (iso) => {
@@ -156,7 +169,7 @@ export default function ProfessorHome({ user }) {
         </div>
 
         <div style={{ display: "inline-flex", background: "rgba(255,255,255,.06)", borderRadius: 12, padding: 4, gap: 4, margin: "16px 0 6px" }}>
-          {[["ponto", "Meu ponto"], ["turma", "Minha turma"]].map(([k, lbl]) => (
+          {[["ponto", "Meu ponto"], ["turma", "Minha turma"], ["historico", "Historico"]].map(([k, lbl]) => (
             <button key={k} type="button" onClick={() => setTab(k)}
               style={{ padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", border: "none", borderRadius: 9,
                 background: tab === k ? "#2563EB" : "transparent", color: tab === k ? "#fff" : "var(--text-dim)" }}>
@@ -192,7 +205,7 @@ export default function ProfessorHome({ user }) {
           ) : temCheckout ? (
             <div className="info-banner" style={{ margin: "14px 0", borderLeft: "5px solid #16A34A" }}>
               <b>Presenca do dia concluida.</b>
-              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)} \u00b7 Check-out {hhmm(reg.check_out)}. Avaliacao enviada. Bom trabalho!</p>
+              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)} &middot; Check-out {hhmm(reg.check_out)}. Avaliacao enviada. Bom trabalho!</p>
             </div>
           ) : (
             <>
@@ -328,6 +341,44 @@ export default function ProfessorHome({ user }) {
                 </p>
               </>
             )}
+          </>
+        )}
+        {tab === "historico" && (
+          <>
+            {carregandoHist ? (
+              <p style={{ color: "var(--text-dim)", padding: "10px 0" }}>Carregando historico...</p>
+            ) : (
+              <div style={{ border: "1px solid rgba(255,255,255,.1)", borderRadius: 10, overflow: "hidden", marginTop: 14 }}>
+                <div style={{ display: "flex", background: "#0f2647", color: "#fff", fontSize: 12, fontWeight: 700, padding: "9px 12px" }}>
+                  <span style={{ width: 96 }}>Dia</span>
+                  <span style={{ flex: 1 }}>Turma</span>
+                  <span style={{ width: 64, textAlign: "center" }}>Entrada</span>
+                  <span style={{ width: 64, textAlign: "center" }}>Saida</span>
+                  <span style={{ width: 92, textAlign: "center" }}>Origem</span>
+                </div>
+                {(hist || []).map((h, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,.06)", fontSize: 13, color: "#fff" }}>
+                    <span style={{ width: 96 }}>{dLabel(h.data)}</span>
+                    <span style={{ flex: 1 }}>{h.turma || "\u2014"}</span>
+                    <span style={{ width: 64, textAlign: "center", color: "var(--text-dim)" }}>{hhmm(h.check_in)}</span>
+                    <span style={{ width: 64, textAlign: "center", color: "var(--text-dim)" }}>{hhmm(h.check_out)}</span>
+                    <span style={{ width: 92, textAlign: "center" }}>
+                      {h.corrigido
+                        ? <span style={{ background: "rgba(217,138,31,.18)", color: "#fbbf24", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 100 }}>Corrigido</span>
+                        : (h.origem === "manual"
+                            ? <span style={{ background: "rgba(37,99,235,.18)", color: "#93c5fd", fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 100 }}>Manual</span>
+                            : <span style={{ color: "var(--text-dim)", fontSize: 11 }}>App</span>)}
+                    </span>
+                  </div>
+                ))}
+                {(!hist || hist.length === 0) && (
+                  <div style={{ padding: 16, textAlign: "center", color: "var(--text-dim)" }}>Nenhum registro ainda.</div>
+                )}
+              </div>
+            )}
+            <p style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 10 }}>
+              Todos os seus check-ins, aulas extras e corre&ccedil;&otilde;es da coordena&ccedil;&atilde;o aparecem aqui. "Corrigido" indica ajuste feito pela coordena&ccedil;&atilde;o.
+            </p>
           </>
         )}
       </div>
