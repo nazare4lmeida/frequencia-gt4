@@ -1786,7 +1786,7 @@ app.get("/api/justificativas/minhas", verificarToken, async (req, res) => {
     const email = String(req.usuarioLogado.email).toLowerCase();
     const { data } = await supabase
       .from("justificativas")
-      .select("data, motivo, documento_nome, status, criado_em")
+      .select("data, motivo, documento_nome, status, resposta, criado_em")
       .eq("aluno_email", email)
       .order("data", { ascending: false });
     res.json({ ok: true, itens: data || [] });

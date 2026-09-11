@@ -105,10 +105,17 @@ export default function JustificarFalta() {
               {itens.map((j, i) => {
                 const p = pill(j.status);
                 return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderTop: i ? "1px solid rgba(255,255,255,.06)" : "none", fontSize: 13, color: "#fff" }}>
-                    <b style={{ width: 90 }}>{dLabel(j.data)}</b>
-                    <span style={{ flex: 1, color: "var(--text-dim)" }}>{j.motivo}{j.documento_nome ? " \u00b7 \u{1F4CE}" : ""}</span>
-                    <span style={{ background: p.bg, color: p.cor, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100 }}>{p.txt}</span>
+                  <div key={i} style={{ padding: "8px 0", borderTop: i ? "1px solid rgba(255,255,255,.06)" : "none", fontSize: 13, color: "#fff" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <b style={{ width: 90 }}>{dLabel(j.data)}</b>
+                      <span style={{ flex: 1, color: "var(--text-dim)" }}>{j.motivo}{j.documento_nome ? " \u00b7 \u{1F4CE}" : ""}</span>
+                      <span style={{ background: p.bg, color: p.cor, fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100 }}>{p.txt}</span>
+                    </div>
+                    {j.resposta ? (
+                      <div style={{ marginTop: 6, marginLeft: 90, background: "rgba(255,255,255,.05)", borderLeft: "3px solid #2563EB", borderRadius: 6, padding: "7px 10px", fontSize: 12.5, color: "var(--text-dim)" }}>
+                        <b style={{ color: "#93c5fd" }}>Coordena&ccedil;&atilde;o:</b> {j.resposta}
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
