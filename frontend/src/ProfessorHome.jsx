@@ -182,12 +182,17 @@ export default function ProfessorHome({ user }) {
         )}
 
         {tab === "ponto" && (<>
+          {reg?.corrigido && (
+            <div className="info-banner" style={{ margin: "14px 0", borderLeft: "5px solid #D98A1F" }}>
+              &#9998; Este registro foi <b>corrigido pela coordena&ccedil;&atilde;o</b>.
+            </div>
+          )}
           {carregando ? (
             <p style={{ color: "var(--text-dim)", padding: "10px 0" }}>Carregando...</p>
           ) : temCheckout ? (
             <div className="info-banner" style={{ margin: "14px 0", borderLeft: "5px solid #16A34A" }}>
               <b>Presenca do dia concluida.</b>
-              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)}{" \u00b7 "}Check-out {hhmm(reg.check_out)}. Avaliacao enviada. Bom trabalho!</p>
+              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)} \u00b7 Check-out {hhmm(reg.check_out)}. Avaliacao enviada. Bom trabalho!</p>
             </div>
           ) : (
             <>
