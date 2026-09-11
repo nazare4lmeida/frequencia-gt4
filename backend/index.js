@@ -28,7 +28,7 @@ const MODO_TESTE = process.env.MODO_TESTE === "true";
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "6mb" }));
 
 // Verificação de segurança para as chaves do Supabase e JWT
 const supabaseUrl = process.env.SUPABASE_URL;
