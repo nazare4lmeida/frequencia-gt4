@@ -221,6 +221,40 @@ export default function Admin({ user }) {
     }
   };
 
+  // Excluir em massa: presencas de uma turma (opcionalmente de uma data)
+  const excluirPresencasTurma = async () => {
+    if (filtroTurma === "todos") {
+      alert("Selecione uma turma específica no filtro acima antes de excluir.");
+      return;
+    }
+    const nomeTurmaSel = nomeTurma(filtroTurma);
+    const comData = !!dataBusca;
+    const aviso = comData
+      ? `TEM CERTEZA? Isso vai EXCLUIR as presenças da turma "${nomeTurmaSel}" APENAS do dia ${dataBusca.split("-").reverse().join("/")}. Esta ação não pode ser desfeita.`
+      : `TEM CERTEZA? Isso vai EXCLUIR TODAS as presenças da turma "${nomeTurmaSel}" (de todos os dias). Esta ação não pode ser desfeita.`;
+    if (!window.confirm(aviso)) return;
+
+    setCarregando(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/presencas-turma/excluir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ turma: filtroTurma, data: comData ? dataBusca : null }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        alert(`${d.excluidas || 0} presença(s) excluída(s) da turma ${nomeTurmaSel}.`);
+        buscarAlunos(busca);
+      } else {
+        alert(`Erro: ${d.error || "não foi possível excluir."}`);
+      }
+    } catch {
+      alert("Erro de conexão ao tentar excluir.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
   const excluirAluno = async () => {
     if (
       !window.confirm(
@@ -372,6 +406,24 @@ export default function Admin({ user }) {
       className="app-wrapper"
       style={{ maxWidth: "1100px", margin: "0 auto", padding: "20px" }}
     >
+      {/* NAVEGACAO RAPIDA (facilita achar as funcoes) */}
+      <div style={{
+        position: "sticky", top: 0, zIndex: 20, display: "flex", gap: "8px",
+        padding: "10px 12px", marginBottom: "18px", flexWrap: "wrap",
+        background: "rgba(15,38,71,.92)", backdropFilter: "blur(6px)",
+        borderRadius: "12px", border: "1px solid rgba(255,255,255,.1)",
+      }}>
+        <span style={{ fontSize: 12, color: "var(--text-dim)", alignSelf: "center", marginRight: 4, fontWeight: 700 }}>Ir para:</span>
+        {[["adm-painel", "📊 Painel"], ["adm-buscar", "🔍 Buscar alunos"]].map(([id, lbl]) => (
+          <button key={id} type="button"
+            onClick={() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+            style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,.18)",
+              background: "rgba(255,255,255,.06)", color: "#e8eefc", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
       {/* --- INÍCIO DO NOVO ACRÉSCIMO: HOME DE GESTÃO RÁPIDA --- */}
       <div className="home-admin-header" style={{ marginBottom: "40px" }}>
         <div
@@ -507,7 +559,7 @@ export default function Admin({ user }) {
           }}
         >
           <div>
-            <h2 style={{ margin: 0 }}>Dashboard Administrativo</h2>
+            <h2 id="adm-painel" style={{ margin: 0, scrollMarginTop: "80px" }}>Dashboard Administrativo</h2>
             <p style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>
               Gestão em Tempo Real • Horário de Brasília • Geração Tech 4.0
             </p>
@@ -528,6 +580,23 @@ export default function Admin({ user }) {
             )}
           </select>
         </div>
+
+        {filtroTurma !== "todos" && (
+          <div style={{ marginTop: "14px", display: "flex", justifyContent: "flex-end" }}>
+            <button
+              onClick={excluirPresencasTurma}
+              disabled={carregando}
+              style={{
+                background: "rgba(179,48,47,.12)", color: "#fca5a5",
+                border: "1px solid #B3302F", borderRadius: "8px",
+                padding: "9px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
+              }}
+              title="Exclui as presenças de todos os alunos desta turma"
+            >
+              🗑️ Excluir presenças da turma{dataBusca ? " (só do dia " + dataBusca.split("-").reverse().join("/") + ")" : " (todos os dias)"}
+            </button>
+          </div>
+        )}
 
         <div
           style={{
@@ -704,6 +773,9 @@ export default function Admin({ user }) {
         </div>
       </div>
 
+      <h3 id="adm-buscar" style={{ margin: "8px 0 12px", fontSize: "1.15rem", color: "var(--text-dim)", scrollMarginTop: "80px" }}>
+        🔍 Buscar e gerenciar alunos
+      </h3>
       <div
         style={{
           display: "grid",

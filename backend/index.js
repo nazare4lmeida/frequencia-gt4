@@ -1813,6 +1813,37 @@ app.get("/api/professor/meus-pontos", verificarToken, async (req, res) => {
   }
 });
 
+// EXCLUIR EM MASSA: todas as presencas de uma turma (opcionalmente de uma data)
+app.post("/api/admin/presencas-turma/excluir", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { turma, data } = req.body;
+    if (!turma) return res.status(400).json({ error: "Informe a turma." });
+
+    // alunos da turma
+    const { data: alunos, error: e1 } = await supabase
+      .from("alunos").select("email").eq("formacao", turma);
+    if (e1) throw e1;
+    const emails = (alunos || []).map((a) => a.email);
+    if (!emails.length) return res.json({ ok: true, excluidas: 0, alunos: 0 });
+
+    // conta antes (para informar quantas serao excluidas)
+    let cq = supabase.from("presencas").select("id", { count: "exact", head: true }).in("aluno_email", emails);
+    if (data) cq = cq.eq("data", data);
+    const { count } = await cq;
+
+    // exclui
+    let dq = supabase.from("presencas").delete().in("aluno_email", emails);
+    if (data) dq = dq.eq("data", data);
+    const { error: e2 } = await dq;
+    if (e2) throw e2;
+
+    res.json({ ok: true, excluidas: count || 0, alunos: emails.length });
+  } catch (err) {
+    console.error("ERRO excluir presencas-turma:", err);
+    res.status(500).json({ error: "Erro ao excluir as presencas da turma." });
+  }
+});
+
 app.get("/api/health", (_, res) =>
   res.json({ status: "online", modoTeste: MODO_TESTE }),
 );
