@@ -214,8 +214,22 @@ const getJanelas = (cronograma, turmaId) =>
 const getAulas = (cronograma, turmaId) =>
   [...(cronograma.aulas.get(turmaId) || [])].sort();
 
-const isDiaDeAula = (cronograma, turmaId, dataISO) =>
-  Boolean(cronograma.aulas.get(turmaId)?.has(dataISO));
+const isDiaDeAula = (cronograma, turmaId, dataISO) => {
+  const aulas = cronograma.aulas.get(turmaId);
+  // 1) Turma COM calendário (datas vindas do Geração Tech): usa ele — exato, como já era.
+  if (aulas && aulas.size > 0) return aulas.has(dataISO);
+  // 2) REDE DE SEGURANÇA: se o calendário da turma estiver VAZIO (ex.: falha de
+  //    sincronização), em vez de bloquear todo mundo, confere pelos dias da
+  //    semana da turma (Full Stack = Seg-Sex, etc.). Assim ninguém fica travado
+  //    num dia real de aula. NÃO altera o comportamento de quem tem calendário.
+  const turma = cronograma.turmas && cronograma.turmas.get(turmaId);
+  if (turma && Array.isArray(turma.dias) && turma.dias.length) {
+    const partes = String(dataISO).slice(0, 10).split("-").map(Number);
+    const dow = new Date(Date.UTC(partes[0], partes[1] - 1, partes[2])).getUTCDay();
+    return turma.dias.includes(dow);
+  }
+  return false;
+};
 
 const getAulasOcorridas = (cronograma, turmaId, ate) =>
   getAulas(cronograma, turmaId).filter((d) => d <= ate);
