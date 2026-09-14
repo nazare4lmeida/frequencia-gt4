@@ -417,56 +417,9 @@ export default function Admin({ user }) {
 
   return (
     <div
-      className="app-wrapper gt-admin-v2"
-      style={{ maxWidth: "1180px", margin: "0 auto", padding: "20px" }}
+      className="app-wrapper"
+      style={{ maxWidth: "1100px", margin: "0 auto", padding: "20px" }}
     >
-      <style>{`
-        .gt-admin-v2 { font-family: 'Inter','Poppins',system-ui,Arial,sans-serif; color:#1f2a44; }
-        .gt-admin-v2 .home-admin-header { margin-bottom: 22px; }
-        /* Cards de estatistica */
-        .gt-admin-v2 .admin-stat-card, .gt-admin-v2 .stat-card {
-          background:#fff; border:1px solid #E7ECF4; border-radius:14px; padding:18px 20px;
-          box-shadow:0 1px 3px rgba(16,38,71,.06); transition:transform .15s, box-shadow .15s;
-        }
-        .gt-admin-v2 .admin-stat-card:hover, .gt-admin-v2 .stat-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(16,38,71,.10); }
-        .gt-admin-v2 .admin-stat-label { font-size:11.5px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#7C89A0; margin-bottom:6px; display:block; }
-        .gt-admin-v2 .admin-stat-number { font-size:30px; font-weight:800; line-height:1; color:#193A70; margin:0; font-family:'Poppins',Arial; }
-        .gt-admin-v2 .card-destaque-hoje { background:linear-gradient(135deg,#E9F7F0,#F4FBF8); border-color:#BFE6D5; }
-        /* Cartoes gerais */
-        .gt-admin-v2 .shadow-card { background:#fff; border:1px solid #E7ECF4; border-radius:14px; box-shadow:0 1px 3px rgba(16,38,71,.06); }
-        /* Inputs */
-        .gt-admin-v2 .input-modern {
-          border:1px solid #CBD6E6; border-radius:10px; padding:10px 13px; font-size:14px; background:#fff;
-          transition:border-color .15s, box-shadow .15s; color:#1f2a44; font-family:inherit;
-        }
-        .gt-admin-v2 .input-modern:focus { outline:none; border-color:#193A70; box-shadow:0 0 0 3px rgba(25,58,112,.12); }
-        /* Botoes */
-        .gt-admin-v2 .btn-ponto { border-radius:10px; font-weight:700; font-size:13.5px; transition:filter .15s; }
-        .gt-admin-v2 .btn-ponto.in { background:#0E7C57; color:#fff; border:none; }
-        .gt-admin-v2 .btn-ponto:hover { filter:brightness(1.06); }
-        .gt-admin-v2 .btn-secondary { background:#F1F5FB; color:#334; border:1px solid #DCE4F0; border-radius:10px; font-weight:600; cursor:pointer; transition:background .15s; }
-        .gt-admin-v2 .btn-secondary:hover { background:#E7EEF8; }
-        .gt-admin-v2 .btn-danger-outline { background:#fff; color:#B3302F; border:1px solid #E6B7B5; border-radius:10px; font-weight:700; cursor:pointer; }
-        .gt-admin-v2 .btn-danger-outline:hover { background:#FBE7E6; }
-        /* Tabelas */
-        .gt-admin-v2 table { width:100%; border-collapse:collapse; }
-        .gt-admin-v2 thead th { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:#7C89A0; font-weight:700; text-align:left; padding:11px 14px; border-bottom:2px solid #EEF2F8; }
-        .gt-admin-v2 tbody td { padding:12px 14px; border-bottom:1px solid #F1F4F9; font-size:13.5px; }
-        .gt-admin-v2 tbody tr:hover { background:#F8FAFD; }
-        /* Pills de status */
-        .gt-admin-v2 .status-pill { display:inline-flex; align-items:center; gap:4px; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:100px; }
-        .gt-admin-v2 .status-pill.ok { background:#E3F5EC; color:#0B7B4F; }
-        .gt-admin-v2 .status-pill.warn { background:#FBF0DC; color:#8A5810; }
-        .gt-admin-v2 .status-pill.danger { background:#FBE7E6; color:#B3302F; }
-        .gt-admin-v2 .status-pill.info { background:#EAF0FE; color:#193A70; }
-        .gt-admin-v2 .status-pill.neutral { background:#EEF1F6; color:#586B88; }
-        /* Modal */
-        .gt-admin-v2 ~ .modal-overlay, .modal-overlay { background:rgba(16,28,51,.55); backdrop-filter:blur(3px); }
-        .gt-admin-v2 .modal-content, .modal-content.shadow-card { border-radius:16px; border:1px solid #E7ECF4; box-shadow:0 20px 60px rgba(16,38,71,.25); }
-        /* Barra de presenca */
-        .gt-admin-v2 .presence-bar { background:#EEF2F8; border-radius:100px; height:7px; overflow:hidden; }
-        .gt-admin-v2 .presence-bar-fill { height:100%; border-radius:100px; }
-      `}</style>
       {/* NAVEGACAO RAPIDA (facilita achar as funcoes) */}
       <div style={{
         position: "sticky", top: 0, zIndex: 20, display: "flex", gap: "8px",
