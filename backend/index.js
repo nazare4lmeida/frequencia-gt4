@@ -797,6 +797,50 @@ app.post(
   },
 );
 
+// ADICIONAR/EDITAR check-out em um registro existente (aluno)
+app.patch(
+  "/api/admin/checkout-manual",
+  verificarToken,
+  verificarAdmin,
+  async (req, res) => {
+    try {
+      const { email, data, check_out } = req.body;
+      if (!email || !data || !check_out) {
+        return res.status(400).json({ error: "Informe e-mail, data e horario de saida." });
+      }
+      const emailLimpo = String(email).trim().toLowerCase();
+      const co = `${data}T${String(check_out).slice(0, 5)}:00-03:00`;
+
+      // acha o registro do aluno naquele dia
+      const { data: regs, error: e1 } = await supabase
+        .from("presencas")
+        .select("id")
+        .eq("aluno_email", emailLimpo)
+        .eq("data", data)
+        .limit(1);
+      if (e1) throw e1;
+
+      if (regs && regs.length) {
+        const { error: e2 } = await supabase
+          .from("presencas")
+          .update({ check_out: co })
+          .eq("id", regs[0].id);
+        if (e2) throw e2;
+        return res.json({ ok: true, msg: "Check-out adicionado ao registro." });
+      }
+      // nao existe registro nesse dia -> cria com check-out (e sem check-in)
+      const { error: e3 } = await supabase
+        .from("presencas")
+        .insert([{ aluno_email: emailLimpo, data: data, check_out: co }]);
+      if (e3) throw e3;
+      res.json({ ok: true, msg: "Registro criado com o check-out." });
+    } catch (err) {
+      console.error("ERRO checkout-manual:", err);
+      res.status(500).json({ error: "Erro ao adicionar o check-out." });
+    }
+  },
+);
+
 app.post(
   "/api/admin/reset-session",
   verificarToken,

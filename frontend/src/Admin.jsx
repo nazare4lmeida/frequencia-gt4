@@ -201,6 +201,20 @@ export default function Admin({ user }) {
   };
 
   // 5. Registro Manual
+  const adicionarCheckout = async () => {
+    if (!window.confirm("Adicionar/atualizar o check-out neste registro?")) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/checkout-manual`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ email: alunoSelecionado.email, data: manualPonto.data, check_out: manualPonto.check_out }),
+      });
+      const d = await res.json();
+      if (res.ok) { alert(d.msg || "Check-out adicionado!"); verDetalhes(alunoSelecionado); }
+      else alert(d.error || "Erro ao adicionar check-out.");
+    } catch { alert("Erro de conexao."); }
+  };
+
   const registrarManual = async () => {
     if (!window.confirm("Deseja inserir este registro manualmente?")) return;
     try {
@@ -1240,6 +1254,19 @@ export default function Admin({ user }) {
                     onClick={registrarManual}
                   >
                     Registrar Presença Manual
+                  </button>
+
+                  <div style={{ borderTop: "1px solid rgba(255,255,255,.1)", margin: "16px 0 12px" }}></div>
+                  <h5 style={{ margin: "0 0 8px", color: "#e8eefc" }}>&#9203; Adicionar check-out em registro existente</h5>
+                  <p style={{ fontSize: "12px", color: "var(--text-dim)", margin: "0 0 10px" }}>
+                    Use quando o aluno marcou a entrada mas <b>esqueceu de bater a sa&iacute;da</b>. Preencha a <b>data</b> e o <b>hor&aacute;rio de sa&iacute;da</b> acima e clique abaixo.
+                  </p>
+                  <button
+                    className="btn-ponto"
+                    style={{ width: "100%", background: "#193A70", color: "#fff", border: "none", padding: "10px", borderRadius: "8px", cursor: "pointer", fontWeight: 700 }}
+                    onClick={adicionarCheckout}
+                  >
+                    &#9989; Adicionar Check-out
                   </button>
                 </div>
               </div>
