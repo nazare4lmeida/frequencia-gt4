@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   API_URL,
   FORMACOES,
@@ -11,7 +11,63 @@ import {
 } from "./Constants";
 import { fetchComToken } from "./Api";
 
-export default function HomeAdmin({ user }) {
+const CHAVE_FILTRO_RAPIDO = "gt_admin_quickfilter";
+
+// Ícones em SVG (em vez de emoji) para não depender da fonte de emoji do
+// sistema, que renderiza cada glifo com sua própria cor/fundo e destoa do
+// tema do painel. currentColor herda a cor definida no badge que o envolve.
+const IconeSvg = ({ path }) => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d={path} />
+  </svg>
+);
+
+const ICONES = {
+  buscar: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35",
+  saida: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  auditoria:
+    "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v0Zm0 9 2 2 4-4",
+  exportar: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",
+};
+
+// Círculo colorido atrás do ícone: mantém contraste consistente em qualquer
+// tema, sem depender de como cada sistema desenha o emoji.
+const IconeBadge = ({ path, cor }) => (
+  <div
+    style={{
+      width: "40px",
+      height: "40px",
+      borderRadius: "50%",
+      background: cor,
+      color: "#ffffff",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      flexShrink: 0,
+    }}
+  >
+    <IconeSvg path={path} />
+  </div>
+);
+
+// Hora atual em Brasília no formato HH:MM, usada para o check-out rápido.
+const horaAgoraBrasilia = () =>
+  new Date().toLocaleTimeString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+export default function HomeAdmin({ user, setView }) {
   const [stats, setStats] = useState({
     totalAlunos: 0,
     sessoesAtivas: 0,
@@ -22,6 +78,8 @@ export default function HomeAdmin({ user }) {
   const [alunosNoPredio, setAlunosNoPredio] = useState([]);
   const [loading, setLoading] = useState(true);
   const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
+  const [checkoutEmAndamento, setCheckoutEmAndamento] = useState(null);
 
   // Curso (fullstack/ia/fullcycle) a partir da turma real, com fallback
   // pela lista estática e, na falta dela, por palavras-chave no nome.
@@ -111,6 +169,7 @@ export default function HomeAdmin({ user }) {
         );
         setAlunosNoPredio(noPredio);
       }
+      setUltimaAtualizacao(new Date());
     } catch (err) {
       console.error("Erro ao carregar dashboard admin:", err);
     } finally {
@@ -125,14 +184,112 @@ export default function HomeAdmin({ user }) {
   }, [carregarDashboard]);
 
   // Contagem por formação (Full Stack / IA Generativa / FullCycle)
-  const contagemPorCurso = [
-    { curso: "fullstack", rotulo: "Full Stack", cor: "#ffffff;" },
-    { curso: "ia", rotulo: "IA Generativa", cor: "#f59e0b" },
-    { curso: "fullcycle", rotulo: "FullCycle", cor: "#6366f1" },
-  ].map((item) => ({
-    ...item,
-    total: alunosNoPredio.filter((a) => cursoDoAluno(a) === item.curso).length,
-  }));
+  const contagemPorCurso = useMemo(
+    () =>
+      [
+        { curso: "fullstack", rotulo: "Full Stack", cor: "#22d3ee" },
+        { curso: "ia", rotulo: "IA Generativa", cor: "#f59e0b" },
+        { curso: "fullcycle", rotulo: "FullCycle", cor: "#6366f1" },
+      ].map((item) => ({
+        ...item,
+        total: alunosNoPredio.filter((a) => cursoDoAluno(a) === item.curso)
+          .length,
+      })),
+    [alunosNoPredio],
+  );
+
+  const maiorContagemCurso = Math.max(
+    1,
+    ...contagemPorCurso.map((c) => c.total),
+  );
+
+  // Leva para o Admin já com um filtro pré-aplicado (lido lá via localStorage)
+  // e rola a tela até a seção correspondente.
+  const irParaAdmin = (filtro = {}, anchor = "adm-buscar") => {
+    try {
+      localStorage.setItem(CHAVE_FILTRO_RAPIDO, JSON.stringify(filtro));
+    } catch (err) {
+      console.error("Não foi possível preparar o filtro rápido:", err);
+    }
+    if (typeof setView === "function") {
+      setView("admin");
+      setTimeout(() => {
+        document
+          .getElementById(anchor)
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    }
+  };
+
+  const irParaGestaoRapida = () => {
+    // No App.jsx, a tela da Gestão Rápida é registrada com a chave "limpeza".
+    if (typeof setView === "function") setView("limpeza");
+  };
+
+  // Check-out relâmpago direto da Home, sem precisar abrir o Admin.
+  const registrarSaidaAgora = async (aluno) => {
+    if (
+      !window.confirm(`Registrar check-out agora para ${aluno.nome}?`)
+    )
+      return;
+    setCheckoutEmAndamento(aluno.email);
+    try {
+      const res = await fetch(`${API_URL}/admin/checkout-manual`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          email: aluno.email,
+          data: hojeBrasilia(),
+          check_out: horaAgoraBrasilia(),
+        }),
+      });
+      if (res.ok) {
+        await carregarDashboard();
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || "Erro ao registrar check-out.");
+      }
+    } catch {
+      alert("Erro de conexão ao registrar check-out.");
+    } finally {
+      setCheckoutEmAndamento(null);
+    }
+  };
+
+  const acoesRapidas = [
+    {
+      titulo: "Buscar & Gerenciar",
+      icone: ICONES.buscar,
+      cor: "var(--accent)",
+      descricao: "Abrir o painel de busca de alunos",
+      onClick: () => irParaAdmin({ status: "todos" }, "adm-buscar"),
+    },
+    {
+      titulo: "Aguardando Check-out",
+      icone: ICONES.saida,
+      cor: "#f59e0b",
+      descricao: `${stats.pendentesSaida} aluno(s) ainda no prédio`,
+      destaque: stats.pendentesSaida > 0,
+      onClick: () => irParaAdmin({ status: "pendente_saida" }, "adm-buscar"),
+    },
+    {
+      titulo: "Auditoria de Faltas",
+      icone: ICONES.auditoria,
+      cor: "#14b8a6",
+      descricao: "Gestão Rápida: nomes e faltas",
+      onClick: irParaGestaoRapida,
+    },
+    {
+      titulo: "Exportar Relatório",
+      icone: ICONES.exportar,
+      cor: "#6366f1",
+      descricao: "Planilha CSV por período",
+      onClick: () => irParaAdmin({}, "adm-painel"),
+    },
+  ];
 
   return (
     <div
@@ -147,7 +304,7 @@ export default function HomeAdmin({ user }) {
           marginBottom: "30px",
           background:
             "linear-gradient(135deg, var(--card-bg) 0%, rgba(0, 128, 128, 0.1) 100%)",
-          borderLeft: "8px solid #052768;",
+          borderLeft: "8px solid var(--accent)",
           borderRadius: "15px",
         }}
       >
@@ -156,6 +313,8 @@ export default function HomeAdmin({ user }) {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "flex-start",
+            flexWrap: "wrap",
+            gap: "15px",
           }}
         >
           <div>
@@ -173,21 +332,39 @@ export default function HomeAdmin({ user }) {
               Olá, {user?.nome?.split(" ")[0] || "Nazaré"}! 👋
             </h1>
           </div>
-          <button
-            onClick={carregarDashboard}
-            disabled={loading}
-            style={{
-              background: "#0b1730",
-              color: "white",
-              border: "none",
-              padding: "8px 15px",
-              borderRadius: "6px",
-              cursor: "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            {loading ? "..." : "🔄 Atualizar"}
-          </button>
+          <div style={{ textAlign: "right" }}>
+            <button
+              onClick={carregarDashboard}
+              disabled={loading}
+              style={{
+                background: "var(--accent)",
+                color: "white",
+                border: "none",
+                padding: "8px 15px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                opacity: loading ? 0.7 : 1,
+              }}
+            >
+              {loading ? "..." : "🔄 Atualizar"}
+            </button>
+            {ultimaAtualizacao && (
+              <p
+                style={{
+                  fontSize: "0.7rem",
+                  color: "var(--text-dim)",
+                  margin: "6px 0 0",
+                }}
+              >
+                Atualizado às{" "}
+                {ultimaAtualizacao.toLocaleTimeString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </p>
+            )}
+          </div>
         </div>
 
         <div
@@ -216,7 +393,7 @@ export default function HomeAdmin({ user }) {
             >
               CHECK-INS HOJE
             </h4>
-            <h2 style={{ fontSize: "2.5rem", margin: 0, color: "#052768;" }}>
+            <h2 style={{ fontSize: "2.5rem", margin: 0, color: "var(--accent)" }}>
               {stats.sessoesAtivas}
             </h2>
             <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>Alunos presentes</p>
@@ -274,6 +451,50 @@ export default function HomeAdmin({ user }) {
         </div>
       </div>
 
+      {/* ATALHOS RÁPIDOS */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "15px",
+          marginBottom: "25px",
+        }}
+      >
+        {acoesRapidas.map((acao) => (
+          <button
+            key={acao.titulo}
+            onClick={acao.onClick}
+            className="shadow-card"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "16px 18px",
+              textAlign: "left",
+              cursor: "pointer",
+              color: "var(--text-main)",
+              font: "inherit",
+              border: acao.destaque
+                ? "1px solid var(--warning)"
+                : "1px solid var(--border-subtle)",
+              background: acao.destaque
+                ? "var(--warning-dim)"
+                : "var(--card-bg)",
+            }}
+          >
+            <IconeBadge path={acao.icone} cor={acao.cor} />
+            <span>
+              <div style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
+                {acao.titulo}
+              </div>
+              <div style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
+                {acao.descricao}
+              </div>
+            </span>
+          </button>
+        ))}
+      </div>
+
       <div
         style={{
           display: "grid",
@@ -281,93 +502,126 @@ export default function HomeAdmin({ user }) {
           gap: "25px",
         }}
       >
-        {/* MONITOR DE PRESENÇA COM CONTADORES POR TURMA */}
-        <div
-          className="shadow-card"
-          style={{ padding: "25px", minHeight: "300px" }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "20px",
-            }}
-          >
-            <h4 style={{ margin: 0, color: "#052768;" }}>
-              🟢 Monitor de Presença
-            </h4>
-
-            {/* Etiquetas de contagem por formação */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              {contagemPorCurso.map((item) => (
-                <span
-                  key={item.curso}
-                  style={{
-                    fontSize: "0.7rem",
-                    background: `${item.cor}26`,
-                    padding: "4px 8px",
-                    borderRadius: "4px",
-                    border: `1px solid ${item.cor}`,
-                  }}
-                >
-                  {item.rotulo}: <strong>{item.total}</strong>
-                </span>
-              ))}
+        {/* COLUNA ESQUERDA */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
+          <div className="shadow-card" style={{ padding: "25px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "15px",
+              }}
+            >
+              <h4 style={{ margin: 0 }}>🏫 Alunos no Prédio Agora</h4>
+              <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
+                {alunosNoPredio.length} no total
+              </span>
             </div>
-          </div>
 
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-          >
-            {alunosNoPredio.length > 0 ? (
-              alunosNoPredio.map((aluno, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    padding: "12px",
-                    background: "rgba(255,255,255,0.02)",
-                    borderRadius: "8px",
-                    borderLeft: `4px solid ${getFormacao(aluno.formacao)?.cor || "#64748b"}`,
-                  }}
-                >
-                  <div>
-                    <div style={{ fontWeight: "bold", fontSize: "0.9rem" }}>
-                      {aluno.nome}
-                    </div>
-                    <div
-                      style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}
-                    >
-                      {aluno.turma_nome || getNomeCurto(aluno.formacao)}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: "right" }}>
-                    <span
-                      style={{
-                        color: "#f4f8ff",
-                        fontSize: "0.85rem",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {aluno.check_in}
-                    </span>
-                    <div
-                      style={{ fontSize: "0.6rem", color: "var(--text-dim)" }}
-                    >
-                      Entrada
-                    </div>
-                  </div>
-                </div>
-              ))
+            {alunosNoPredio.length === 0 ? (
+              <p
+                style={{
+                  textAlign: "center",
+                  color: "var(--text-dim)",
+                  padding: "30px 0",
+                  fontSize: "0.85rem",
+                }}
+              >
+                {loading
+                  ? "Carregando..."
+                  : "Ninguém marcou entrada hoje ainda."}
+              </p>
             ) : (
-              <div style={{ textAlign: "center", padding: "40px" }}>
-                <p style={{ color: "var(--text-dim)" }}>
-                  Nenhum aluno presente no momento.
-                </p>
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  maxHeight: "340px",
+                  overflowY: "auto",
+                }}
+              >
+                {alunosNoPredio.map((aluno) => (
+                  <div
+                    key={aluno.email}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "10px 12px",
+                      borderRadius: "8px",
+                      background: "rgba(0,128,128,0.05)",
+                      border: "1px solid var(--border-subtle)",
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: "0.85rem", fontWeight: "bold" }}>
+                        {aluno.nome || aluno.email}
+                      </div>
+                      <div
+                        style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}
+                      >
+                        {aluno.turma_nome || getNomeCurto(aluno.formacao)} •
+                        entrou às {aluno.check_in || "--:--"}
+                      </div>
+                    </div>
+                    <button
+                      className="btn-secondary"
+                      disabled={checkoutEmAndamento === aluno.email}
+                      onClick={() => registrarSaidaAgora(aluno)}
+                      style={{ fontSize: "0.7rem", padding: "6px 10px" }}
+                    >
+                      {checkoutEmAndamento === aluno.email
+                        ? "..."
+                        : "Registrar saída"}
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
+          </div>
+
+          <div className="shadow-card" style={{ padding: "25px" }}>
+            <h4 style={{ marginTop: 0, marginBottom: "18px" }}>
+              📊 Distribuição por Formação
+            </h4>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+            >
+              {contagemPorCurso.map((item) => (
+                <div key={item.curso}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      fontSize: "0.8rem",
+                      marginBottom: "5px",
+                    }}
+                  >
+                    <span>{item.rotulo}</span>
+                    <strong>{item.total}</strong>
+                  </div>
+                  <div
+                    style={{
+                      background: "var(--border-subtle)",
+                      height: "8px",
+                      borderRadius: "4px",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${(item.total / maiorContagemCurso) * 100}%`,
+                        background: item.cor,
+                        height: "100%",
+                        transition: "width 0.6s ease",
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -407,7 +661,7 @@ export default function HomeAdmin({ user }) {
                 <div
                   style={{
                     width: `${(stats.sessoesAtivas / (stats.totalAlunos || 1)) * 100}%`,
-                    background: "#0b1730",
+                    background: "var(--accent)",
                     height: "100%",
                     transition: "width 1s",
                   }}
@@ -417,7 +671,7 @@ export default function HomeAdmin({ user }) {
           </div>
 
           <div className="shadow-card" style={{ padding: "25px" }}>
-            <h4 style={{ marginBottom: "15px", color: "#052768;" }}>
+            <h4 style={{ marginBottom: "15px", color: "var(--accent)" }}>
               📅 Próxima Aula
             </h4>
             <div
@@ -432,6 +686,25 @@ export default function HomeAdmin({ user }) {
                 <strong>Pauta:</strong> {pautaHoje}
               </p>
             </div>
+          </div>
+
+          <div
+            className="shadow-card"
+            style={{ padding: "25px", borderTop: "4px solid #ef4444" }}
+          >
+            <h4 style={{ marginTop: 0 }}>🔔 Concluídos Hoje</h4>
+            <p
+              style={{
+                fontSize: "2rem",
+                margin: "5px 0",
+                fontWeight: "bold",
+              }}
+            >
+              {stats.concluidosHoje}
+            </p>
+            <p style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
+              Alunos que já bateram entrada e saída hoje.
+            </p>
           </div>
         </div>
       </div>

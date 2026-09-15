@@ -450,7 +450,7 @@ export default function App() {
                 <button
                   className="btn-secondary"
                   style={{
-                    border: view === "admin" ? "2px solid #052768;" : "none",
+                    border: view === "admin" ? "2px solid var(--accent)" : "none",
                   }}
                   onClick={() => setView("admin")}
                 >
@@ -460,7 +460,7 @@ export default function App() {
                   className="btn-secondary"
                   style={{
                     border:
-                      view === "cronograma" ? "2px solid #052768;" : "none",
+                      view === "cronograma" ? "2px solid var(--accent)" : "none",
                   }}
                   onClick={() => setView("cronograma")}
                 >
@@ -469,7 +469,7 @@ export default function App() {
                 <button
                   className="btn-secondary"
                   style={{
-                    border: view === "limpeza" ? "2px solid #052768;" : "none",
+                    border: view === "limpeza" ? "2px solid var(--accent)" : "none",
                   }}
                   onClick={() => setView("limpeza")}
                 >

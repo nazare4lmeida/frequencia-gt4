@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { fetchComToken } from "./Api";
 import {
   API_URL,
@@ -9,9 +9,18 @@ import {
   hojeBrasilia,
 } from "./Constants";
 
+const horaAgoraBrasilia = () =>
+  new Date().toLocaleTimeString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
 export default function GestaoRapida({ user, setView }) {
   const [alunos, setAlunos] = useState([]);
   const [filtroTurma, setFiltroTurma] = useState("todos");
+  const [busca, setBusca] = useState("");
+  const [ordenacao, setOrdenacao] = useState("nome");
   const [carregando, setCarregando] = useState(true);
   const [statusSalva, setStatusSalva] = useState({});
   const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
@@ -21,7 +30,7 @@ export default function GestaoRapida({ user, setView }) {
   const turmaInfo = (id) => turmasDisponiveis.find((t) => t.id === id);
   const nomeTurma = (id) => turmaInfo(id)?.nome || getNomeCurto(id);
 
-  // --- ACRÉSCIMO: ESTADOS PARA O MODAL DE GERENCIAMENTO ---
+  // --- ESTADOS PARA O MODAL DE GERENCIAMENTO ---
   const [alunoSelecionado, setAlunoSelecionado] = useState(null);
   const [historicoAluno, setHistoricoAluno] = useState([]);
   const [modalAberto, setModalAberto] = useState(false);
@@ -98,7 +107,7 @@ export default function GestaoRapida({ user, setView }) {
     }
   };
 
-  // --- ACRÉSCIMO: FUNÇÕES DO MODAL (DETALHES, EDIÇÃO E PONTO MANUAL) ---
+  // --- FUNÇÕES DO MODAL (DETALHES, EDIÇÃO E PONTO MANUAL) ---
   const verDetalhes = async (aluno) => {
     setCarregando(true);
     setAlunoSelecionado(aluno);
@@ -143,6 +152,9 @@ export default function GestaoRapida({ user, setView }) {
         alert("Dados atualizados com sucesso!");
         setModalAberto(false);
         carregarTodos();
+      } else {
+        const erro = await res.json().catch(() => ({}));
+        alert(`Erro: ${erro.error || "não foi possível salvar."}`);
       }
     } catch {
       alert("Erro ao salvar alterações.");
@@ -170,6 +182,97 @@ export default function GestaoRapida({ user, setView }) {
       alert("Erro ao registrar ponto manual.");
     }
   };
+
+  // Preenche o check-out com o horário atual e envia — mesmo endpoint do Admin.
+  const adicionarCheckoutAgora = async () => {
+    if (
+      !window.confirm(
+        `Registrar check-out agora (${horaAgoraBrasilia()}) para ${alunoSelecionado.nome}?`,
+      )
+    )
+      return;
+    try {
+      const res = await fetch(`${API_URL}/admin/checkout-manual`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          email: alunoSelecionado.email,
+          data: manualPonto.data || hojeBrasilia(),
+          check_out: horaAgoraBrasilia(),
+        }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) {
+        alert(d.msg || "Check-out adicionado!");
+        verDetalhes(alunoSelecionado);
+      } else {
+        alert(d.error || "Erro ao adicionar check-out.");
+      }
+    } catch {
+      alert("Erro de conexão.");
+    }
+  };
+
+  // Mesma ação de reset de sessão que existe no Admin.
+  const resetarSessao = async (email) => {
+    if (
+      !window.confirm(
+        "Isso forçará o aluno a fazer login novamente na próxima vez que abrir o site. Continuar?",
+      )
+    )
+      return;
+    try {
+      await fetch(`${API_URL}/admin/reset-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({ email }),
+      });
+      alert("Solicitação de reset enviada.");
+    } catch {
+      alert("Erro ao resetar.");
+    }
+  };
+
+  // Mesma exclusão permanente de cadastro que existe no Admin.
+  const excluirAluno = async () => {
+    if (
+      !window.confirm(
+        `TEM CERTEZA? Isso excluirá permanentemente o cadastro e todo o histórico de ${alunoSelecionado.nome}. Esta ação não pode ser desfeita.`,
+      )
+    )
+      return;
+
+    setCarregando(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/admin/aluno/${encodeURIComponent(alunoSelecionado.email)}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${user.token}` },
+        },
+      );
+
+      if (res.ok) {
+        alert("Cadastro removido com sucesso!");
+        setModalAberto(false);
+        carregarTodos();
+      } else {
+        const erro = await res.json().catch(() => ({}));
+        alert(`Erro: ${erro.error || "não foi possível excluir."}`);
+      }
+    } catch {
+      alert("Erro de conexão ao tentar excluir.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
   const exportarFaltosos = () => {
     const faltosos = alunosFiltrados.filter((a) => {
       return (a.total_faltas || 0) > 0;
@@ -198,9 +301,41 @@ export default function GestaoRapida({ user, setView }) {
     link.click();
   };
 
-  const alunosFiltrados = alunos.filter((a) =>
-    filtroTurma === "todos" ? true : a.formacao === filtroTurma,
-  );
+  const alunosFiltrados = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return alunos
+      .filter((a) => (filtroTurma === "todos" ? true : a.formacao === filtroTurma))
+      .filter((a) =>
+        termo
+          ? (a.nome || "").toLowerCase().includes(termo) ||
+            (a.email || "").toLowerCase().includes(termo)
+          : true,
+      )
+      .sort((a, b) => {
+        if (ordenacao === "faltas")
+          return (b.total_faltas || 0) - (a.total_faltas || 0);
+        if (ordenacao === "presencas")
+          return (b.total_presencas || 0) - (a.total_presencas || 0);
+        return (a.nome || a.email || "").localeCompare(b.nome || b.email || "");
+      });
+  }, [alunos, filtroTurma, busca, ordenacao]);
+
+  // Resumo de risco para dar contexto rápido de auditoria.
+  const resumo = useMemo(() => {
+    const base =
+      filtroTurma === "todos"
+        ? alunos
+        : alunos.filter((a) => a.formacao === filtroTurma);
+    const total = base.length;
+    const emRisco = base.filter((a) => (a.total_faltas || 0) > 2).length;
+    const semNome = base.filter((a) => !a.nome || !a.nome.trim()).length;
+    const mediaPresencas = total
+      ? (
+          base.reduce((s, a) => s + (a.total_presencas || 0), 0) / total
+        ).toFixed(1)
+      : "0";
+    return { total, emRisco, semNome, mediaPresencas };
+  }, [alunos, filtroTurma]);
 
   if (carregando && !modalAberto)
     return <div className="app-wrapper">Carregando base de dados...</div>;
@@ -214,6 +349,8 @@ export default function GestaoRapida({ user, setView }) {
             justifyContent: "space-between",
             alignItems: "center",
             marginBottom: "20px",
+            flexWrap: "wrap",
+            gap: "12px",
           }}
         >
           <div>
@@ -252,9 +389,118 @@ export default function GestaoRapida({ user, setView }) {
                 ),
               )}
             </select>
+            {typeof setView === "function" && (
+              <button onClick={() => setView("home")} className="btn-secondary">
+                🏠 Início
+              </button>
+            )}
             <button onClick={() => setView("admin")} className="btn-secondary">
               Voltar
             </button>
+          </div>
+        </div>
+
+        {/* BUSCA E ORDENAÇÃO */}
+        <div
+          style={{
+            display: "flex",
+            gap: "10px",
+            marginBottom: "15px",
+            flexWrap: "wrap",
+          }}
+        >
+          <input
+            type="text"
+            className="input-modern"
+            style={{ flex: 1, minWidth: "220px", margin: 0 }}
+            placeholder="Buscar por nome ou e-mail..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
+          <select
+            className="input-modern"
+            style={{ width: "200px", margin: 0 }}
+            value={ordenacao}
+            onChange={(e) => setOrdenacao(e.target.value)}
+          >
+            <option value="nome">Ordenar: Nome (A-Z)</option>
+            <option value="faltas">Ordenar: Mais faltas primeiro</option>
+            <option value="presencas">Ordenar: Mais presenças primeiro</option>
+          </select>
+        </div>
+
+        {/* RESUMO RÁPIDO */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+            gap: "10px",
+            marginBottom: "20px",
+          }}
+        >
+          <div
+            style={{
+              padding: "12px",
+              borderRadius: "8px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
+              ALUNOS NA LISTA
+            </div>
+            <div style={{ fontSize: "1.4rem", fontWeight: "bold" }}>
+              {resumo.total}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: "12px",
+              borderRadius: "8px",
+              background: "rgba(239, 68, 68, 0.08)",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
+            }}
+          >
+            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
+              EM RISCO (+2 faltas)
+            </div>
+            <div
+              style={{ fontSize: "1.4rem", fontWeight: "bold", color: "#ef4444" }}
+            >
+              {resumo.emRisco}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: "12px",
+              borderRadius: "8px",
+              background: "rgba(245, 158, 11, 0.08)",
+              border: "1px solid rgba(245, 158, 11, 0.3)",
+            }}
+          >
+            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
+              CADASTRO SEM NOME
+            </div>
+            <div
+              style={{ fontSize: "1.4rem", fontWeight: "bold", color: "#f59e0b" }}
+            >
+              {resumo.semNome}
+            </div>
+          </div>
+          <div
+            style={{
+              padding: "12px",
+              borderRadius: "8px",
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
+              MÉDIA DE PRESENÇAS
+            </div>
+            <div style={{ fontSize: "1.4rem", fontWeight: "bold" }}>
+              {resumo.mediaPresencas}
+            </div>
           </div>
         </div>
 
@@ -357,11 +603,25 @@ export default function GestaoRapida({ user, setView }) {
                 </tr>
               );
             })}
+            {alunosFiltrados.length === 0 && (
+              <tr>
+                <td
+                  colSpan={5}
+                  style={{
+                    textAlign: "center",
+                    padding: "30px 0",
+                    color: "var(--text-dim)",
+                  }}
+                >
+                  Nenhum aluno encontrado com esses filtros.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* --- ACRÉSCIMO: MODAL DE GERENCIAMENTO INTEGRADO --- */}
+      {/* MODAL DE GERENCIAMENTO INTEGRADO (paridade com o Admin) */}
       {modalAberto && alunoSelecionado && (
         <div className="modal-overlay">
           <div
@@ -462,7 +722,7 @@ export default function GestaoRapida({ user, setView }) {
                     borderRadius: "8px",
                   }}
                 >
-                  <h5>Editar Cadastro</h5>
+                  <h5 style={{ marginTop: 0 }}>Editar Cadastro</h5>
                   <div
                     style={{
                       display: "grid",
@@ -490,6 +750,18 @@ export default function GestaoRapida({ user, setView }) {
                       }
                       placeholder="Email"
                     />
+                    <input
+                      type="date"
+                      className="input-modern"
+                      value={dadosEdicao.data_nascimento}
+                      onChange={(e) =>
+                        setDadosEdicao({
+                          ...dadosEdicao,
+                          data_nascimento: e.target.value,
+                        })
+                      }
+                      placeholder="Data de Nascimento"
+                    />
                   </div>
                   <button
                     className="btn-secondary"
@@ -497,6 +769,18 @@ export default function GestaoRapida({ user, setView }) {
                     onClick={salvarEdicao}
                   >
                     Salvar Alterações
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    style={{
+                      marginTop: "5px",
+                      width: "100%",
+                      border: "1px solid #ef4444",
+                      color: "#ef4444",
+                    }}
+                    onClick={() => resetarSessao(alunoSelecionado.email)}
+                  >
+                    Forçar Deslogar Aluno
                   </button>
                 </div>
 
@@ -554,7 +838,57 @@ export default function GestaoRapida({ user, setView }) {
                   >
                     Registrar Presença Manual
                   </button>
+
+                  <div
+                    style={{
+                      borderTop: "1px solid rgba(255,255,255,.1)",
+                      margin: "16px 0 12px",
+                    }}
+                  ></div>
+                  <h5 style={{ margin: "0 0 8px", color: "#e8eefc" }}>
+                    &#9203; Adicionar check-out em registro existente
+                  </h5>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-dim)",
+                      margin: "0 0 10px",
+                    }}
+                  >
+                    Use quando o aluno marcou a entrada mas{" "}
+                    <b>esqueceu de bater a saída</b>. Preenche automaticamente
+                    com o horário atual.
+                  </p>
+                  <button
+                    className="btn-ponto"
+                    style={{
+                      width: "100%",
+                      background: "#193A70",
+                      color: "#fff",
+                      border: "none",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                    }}
+                    onClick={adicionarCheckoutAgora}
+                  >
+                    &#9989; Adicionar Check-out Agora
+                  </button>
                 </div>
+
+                <button
+                  className="btn-danger-outline"
+                  style={{
+                    width: "100%",
+                    border: "1px solid #9d3131",
+                    color: "#9d3131",
+                  }}
+                  onClick={excluirAluno}
+                  disabled={carregando}
+                >
+                  🗑️ Excluir Cadastro Permanente
+                </button>
               </div>
             )}
             <button

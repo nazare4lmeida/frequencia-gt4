@@ -31,6 +31,23 @@ export default function Admin({ user }) {
   const [carregando, setCarregando] = useState(false);
   const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
 
+  // Lê o atalho rápido deixado pela Home (HomeAdmin) e aplica os filtros
+  // uma única vez, depois limpa para não reaplicar em próximas visitas.
+  useEffect(() => {
+    try {
+      const bruto = localStorage.getItem("gt_admin_quickfilter");
+      if (bruto) {
+        const filtro = JSON.parse(bruto);
+        if (filtro.status) setFiltroStatus(filtro.status);
+        if (filtro.turma) setFiltroTurma(filtro.turma);
+        if (filtro.data) setDataBusca(filtro.data);
+        localStorage.removeItem("gt_admin_quickfilter");
+      }
+    } catch (err) {
+      console.error("Erro ao aplicar filtro rápido:", err);
+    }
+  }, []);
+
   // Nome real da turma, resolvido pelo cronograma do backend (Geração Tech),
   // com fallback para a lista estática só se a busca ainda não voltou.
   const nomeTurma = (id) =>
@@ -202,17 +219,29 @@ export default function Admin({ user }) {
 
   // 5. Registro Manual
   const adicionarCheckout = async () => {
-    if (!window.confirm("Adicionar/atualizar o check-out neste registro?")) return;
+    if (!window.confirm("Adicionar/atualizar o check-out neste registro?"))
+      return;
     try {
       const res = await fetch(`${API_URL}/admin/checkout-manual`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify({ email: alunoSelecionado.email, data: manualPonto.data, check_out: manualPonto.check_out }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          email: alunoSelecionado.email,
+          data: manualPonto.data,
+          check_out: manualPonto.check_out,
+        }),
       });
       const d = await res.json();
-      if (res.ok) { alert(d.msg || "Check-out adicionado!"); verDetalhes(alunoSelecionado); }
-      else alert(d.error || "Erro ao adicionar check-out.");
-    } catch { alert("Erro de conexao."); }
+      if (res.ok) {
+        alert(d.msg || "Check-out adicionado!");
+        verDetalhes(alunoSelecionado);
+      } else alert(d.error || "Erro ao adicionar check-out.");
+    } catch {
+      alert("Erro de conexao.");
+    }
   };
 
   const registrarManual = async () => {
@@ -252,12 +281,20 @@ export default function Admin({ user }) {
     try {
       const res = await fetch(`${API_URL}/admin/presencas-turma/excluir`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify({ turma: filtroTurma, data: comData ? dataBusca : null }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${user.token}`,
+        },
+        body: JSON.stringify({
+          turma: filtroTurma,
+          data: comData ? dataBusca : null,
+        }),
       });
       const d = await res.json();
       if (res.ok) {
-        alert(`${d.excluidas || 0} presença(s) excluída(s) da turma ${nomeTurmaSel}.`);
+        alert(
+          `${d.excluidas || 0} presença(s) excluída(s) da turma ${nomeTurmaSel}.`,
+        );
         buscarAlunos(busca);
       } else {
         alert(`Erro: ${d.error || "não foi possível excluir."}`);
@@ -420,148 +457,6 @@ export default function Admin({ user }) {
       className="app-wrapper"
       style={{ maxWidth: "1100px", margin: "0 auto", padding: "20px" }}
     >
-      {/* NAVEGACAO RAPIDA (facilita achar as funcoes) */}
-      <div style={{
-        position: "sticky", top: 0, zIndex: 20, display: "flex", gap: "8px",
-        padding: "10px 12px", marginBottom: "18px", flexWrap: "wrap",
-        background: "rgba(15,38,71,.92)", backdropFilter: "blur(6px)",
-        borderRadius: "12px", border: "1px solid rgba(255,255,255,.1)",
-      }}>
-        <span style={{ fontSize: 12, color: "var(--text-dim)", alignSelf: "center", marginRight: 4, fontWeight: 700 }}>Ir para:</span>
-        {[["adm-painel", "📊 Painel"], ["adm-buscar", "🔍 Buscar alunos"]].map(([id, lbl]) => (
-          <button key={id} type="button"
-            onClick={() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-            style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid rgba(255,255,255,.18)",
-              background: "rgba(255,255,255,.06)", color: "#e8eefc", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
-            {lbl}
-          </button>
-        ))}
-      </div>
-
-      {/* --- INÍCIO DO NOVO ACRÉSCIMO: HOME DE GESTÃO RÁPIDA --- */}
-      <div className="home-admin-header" style={{ marginBottom: "40px" }}>
-        <div
-          className="shadow-card"
-          style={{
-            padding: "30px",
-            background:
-              "linear-gradient(135deg, var(--card-bg) 0%, rgba(0, 128, 128, 0.08) 100%)",
-            borderLeft: "8px solid #052768;",
-            borderRadius: "15px",
-          }}
-        >
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1.5fr 1fr",
-              gap: "40px",
-            }}
-          >
-            <div>
-              <span
-                style={{
-                  fontSize: "0.8rem",
-                  color: "#f4f8ff",
-                  fontWeight: "bold",
-                  textTransform: "uppercase",
-                  letterSpacing: "1px",
-                }}
-              >
-                Central de Comando Geração Tech 4.0
-              </span>
-              <h2 style={{ margin: "10px 0", fontSize: "1.8rem" }}>
-                {!proximasAulas[0]
-                  ? "Sem aulas futuras no calendário"
-                  : proximasAulas[0] === PERIODO_LETIVO.aulaInaugural
-                    ? "🚀 Aula inaugural em " +
-                      formatarDataBR(PERIODO_LETIVO.aulaInaugural)
-                    : proximasAulas[0] === hojeBrasilia()
-                      ? "Aula hoje"
-                      : `Próxima aula: ${formatarDataBR(proximasAulas[0])}`}
-              </h2>
-              <p style={{ fontSize: "1.1rem", color: "var(--text-normal)" }}>
-                <strong>Turma:</strong>{" "}
-                {filtroTurma === "todos"
-                  ? "Todas as formações do Geração Tech 4.0"
-                  : nomeTurma(filtroTurma)}
-              </p>
-              <div style={{ marginTop: "20px", display: "flex", gap: "10px" }}>
-                <div
-                  style={{
-                    padding: "10px 15px",
-                    background: "rgba(0,0,0,0.1)",
-                    borderRadius: "8px",
-                    fontSize: "0.85rem",
-                  }}
-                >
-                  🔔 <strong>Lembrete:</strong> conferir a lista de presença
-                  após o fim da janela de check-out
-                  {filtroTurma !== "todos"
-                    ? ` (${formatarHoraDecimal(getJanelasHorario(filtroTurma).checkOut.fim)})`
-                    : ""}
-                  .
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderLeft: "1px solid var(--border-subtle)",
-                paddingLeft: "30px",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-              }}
-            >
-              <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
-                ENGAJAMENTO DA TURMA
-              </span>
-              <h1
-                style={{
-                  margin: "5px 0",
-                  color: "#f4f8ff",
-                  fontSize: "2.5rem",
-                }}
-              >
-                {(
-                  (stats.sessoesAtivas / (stats.totalAlunos || 1)) *
-                  100
-                ).toFixed(0)}
-                %
-              </h1>
-              <p style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>
-                Alunos presentes em tempo real
-              </p>
-              <div
-                style={{
-                  background: "var(--border-subtle)",
-                  height: "8px",
-                  borderRadius: "4px",
-                  marginTop: "10px",
-                  overflow: "hidden",
-                }}
-              >
-                <div
-                  style={{
-                    width: `${(stats.sessoesAtivas / (stats.totalAlunos || 1)) * 100}%`,
-                    background: "#0b1730",
-                    height: "100%",
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <hr
-        style={{
-          border: "none",
-          borderTop: "1px solid var(--border-subtle)",
-          marginBottom: "40px",
-        }}
-      />
-      {/* --- FIM DO NOVO ACRÉSCIMO --- */}
 
       {/* INÍCIO DO SEU DASHBOARD ORIGINAL (MANTIDO) */}
       <div style={{ marginBottom: "30px" }}>
@@ -573,7 +468,9 @@ export default function Admin({ user }) {
           }}
         >
           <div>
-            <h2 id="adm-painel" style={{ margin: 0, scrollMarginTop: "80px" }}>Dashboard Administrativo</h2>
+            <h2 id="adm-painel" style={{ margin: 0, scrollMarginTop: "80px" }}>
+              Dashboard Administrativo
+            </h2>
             <p style={{ color: "var(--text-dim)", fontSize: "0.9rem" }}>
               Gestão em Tempo Real • Horário de Brasília • Geração Tech 4.0
             </p>
@@ -596,18 +493,34 @@ export default function Admin({ user }) {
         </div>
 
         {filtroTurma !== "todos" && (
-          <div style={{ marginTop: "14px", display: "flex", justifyContent: "flex-end" }}>
+          <div
+            style={{
+              marginTop: "14px",
+              display: "flex",
+              justifyContent: "flex-end",
+            }}
+          >
             <button
               onClick={excluirPresencasTurma}
               disabled={carregando}
               style={{
-                background: "rgba(179,48,47,.12)", color: "#fca5a5",
-                border: "1px solid #B3302F", borderRadius: "8px",
-                padding: "9px 16px", fontSize: "13px", fontWeight: 700, cursor: "pointer",
+                background: "rgba(179,48,47,.12)",
+                color: "#fca5a5",
+                border: "1px solid #B3302F",
+                borderRadius: "8px",
+                padding: "9px 16px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
               }}
               title="Exclui as presenças de todos os alunos desta turma"
             >
-              🗑️ Excluir presenças da turma{dataBusca ? " (só do dia " + dataBusca.split("-").reverse().join("/") + ")" : " (todos os dias)"}
+              🗑️ Excluir presenças da turma
+              {dataBusca
+                ? " (só do dia " +
+                  dataBusca.split("-").reverse().join("/") +
+                  ")"
+                : " (todos os dias)"}
             </button>
           </div>
         )}
@@ -624,170 +537,22 @@ export default function Admin({ user }) {
           <div
             style={{
               width: `${(stats.sessoesAtivas / (stats.totalAlunos || 1)) * 100}%`,
-              background: "#0b1730",
+              background: "var(--accent)",
               height: "100%",
               transition: "width 0.5s ease",
             }}
           />
         </div>
-        <p
-          style={{
-            fontSize: "0.75rem",
-            marginTop: "5px",
-            color: "var(--text-dim)",
-          }}
-        >
-          Adesão da Aula: <strong>{stats.sessoesAtivas || 0} alunos</strong>{" "}
-          fizeram check-in hoje.
-        </p>
-      </div>
-
-      {/* --- INÍCIO DO ACRESCIMO: PAINEL DE CONTROLE OPERACIONAL --- */}
-      <div
-        className="shadow-card"
+      </div>      
+      <h3
+        id="adm-buscar"
         style={{
-          padding: "25px",
-          marginBottom: "30px",
-          background:
-            "linear-gradient(135deg, var(--card-bg) 0%, rgba(0, 128, 128, 0.05) 100%)",
-          borderLeft: "6px solid #052768;",
-          borderRadius: "12px",
+          margin: "8px 0 12px",
+          fontSize: "1.15rem",
+          color: "var(--text-dim)",
+          scrollMarginTop: "80px",
         }}
       >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr",
-            gap: "30px",
-          }}
-        >
-          <div>
-            <span
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-dim)",
-                fontWeight: "bold",
-                textTransform: "uppercase",
-              }}
-            >
-              Status da Próxima Aula
-            </span>
-            <h3
-              style={{
-                margin: "10px 0",
-                color: "#f4f8ff",
-                fontSize: "1.5rem",
-              }}
-            >
-              {proximasAulas[0]
-                ? formatarDataBR(proximasAulas[0])
-                : "Sem aulas futuras"}
-            </h3>
-            <p style={{ margin: 0, fontSize: "1.1rem" }}>
-              <strong>Horário:</strong>{" "}
-              {proximasAulas[0] === PERIODO_LETIVO.aulaInaugural
-                ? "Aula inaugural — presencial e online"
-                : filtroTurma !== "todos"
-                  ? getJanelasHorario(filtroTurma).label
-                  : "Conforme o turno de cada turma"}
-            </p>
-          </div>
-          <div
-            style={{
-              borderLeft: "1px solid var(--border-subtle)",
-              paddingLeft: "30px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-            }}
-          >
-            <span style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
-              SESSÕES ATIVAS
-            </span>
-            <h2 style={{ margin: "5px 0", color: "#052768;" }}>
-              {stats.sessoesAtivas || 0}
-            </h2>
-            <p
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-dim)",
-                margin: 0,
-              }}
-            >
-              Alunos em aula agora
-            </p>
-          </div>
-        </div>
-      </div>
-      {/* --- FIM DO ACRESCIMO --- */}
-
-      <div className="admin-stat-card card-destaque-hoje">
-        <span className="admin-stat-label">CONCLUÍRAM HOJE (SAÍDA OK)</span>
-        <h2 className="admin-stat-number" style={{ color: "#0a6547" }}>
-          {stats.concluidosHoje || 0}
-        </h2>
-      </div>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "15px",
-          marginBottom: "25px",
-        }}
-      >
-        <div
-          className="stat-card"
-          style={{
-            padding: "20px",
-            textAlign: "center",
-            background: "var(--card-bg)",
-            borderRadius: "12px",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-            CHECK-INS HOJE
-          </span>
-          <h2 style={{ color: "#f4f8ff", margin: "5px 0" }}>
-            {stats.sessoesAtivas || 0}
-          </h2>
-        </div>
-        <div
-          className="stat-card"
-          style={{
-            padding: "20px",
-            textAlign: "center",
-            background: "var(--card-bg)",
-            borderRadius: "12px",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-            TOTAL HISTÓRICO
-          </span>
-          <h2 style={{ margin: "5px 0" }}>{stats.totalPresencas || 0}</h2>
-        </div>
-        <div
-          className="stat-card"
-          style={{
-            padding: "20px",
-            textAlign: "center",
-            background: "var(--card-bg)",
-            borderRadius: "12px",
-            border: "1px solid var(--border-subtle)",
-          }}
-        >
-          <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-            PENDENTES SAÍDA
-          </span>
-          <h2 style={{ color: "#f59e0b", margin: "5px 0" }}>
-            {stats.pendentesSaida || 0}
-          </h2>
-        </div>
-      </div>
-
-      <h3 id="adm-buscar" style={{ margin: "8px 0 12px", fontSize: "1.15rem", color: "var(--text-dim)", scrollMarginTop: "80px" }}>
         🔍 Buscar e gerenciar alunos
       </h3>
       <div
@@ -928,7 +693,7 @@ export default function Admin({ user }) {
 
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
           <div className="shadow-card" style={{ padding: "20px" }}>
-            <h4>Relatórios</h4>
+            <h4 id="adm-export" style={{ scrollMarginTop: "80px" }}>Relatórios</h4>
             <div
               style={{
                 display: "flex",
@@ -970,7 +735,7 @@ export default function Admin({ user }) {
           </div>
           <div
             className="shadow-card"
-            style={{ padding: "20px", borderLeft: "4px solid #052768;" }}
+            style={{ padding: "20px", borderLeft: "4px solid var(--accent)" }}
           >
             <h4 style={{ color: "#f4f8ff", marginBottom: "15px" }}>
               📅 Próximas Aulas
@@ -1032,9 +797,9 @@ export default function Admin({ user }) {
                 <button
                   onClick={() => setEditando(false)}
                   style={{
-                    background: !editando ? "#052768;" : "transparent",
+                    background: !editando ? "var(--accent)" : "transparent",
                     color: !editando ? "white" : "var(--text-normal)",
-                    border: "1px solid #052768;",
+                    border: "1px solid var(--accent)",
                     padding: "5px 10px",
                     borderRadius: "4px",
                     cursor: "pointer",
@@ -1045,9 +810,9 @@ export default function Admin({ user }) {
                 <button
                   onClick={() => setEditando(true)}
                   style={{
-                    background: editando ? "#052768;" : "transparent",
+                    background: editando ? "var(--accent)" : "transparent",
                     color: editando ? "white" : "var(--text-normal)",
-                    border: "1px solid #052768;",
+                    border: "1px solid var(--accent)",
                     padding: "5px 10px",
                     borderRadius: "4px",
                     cursor: "pointer",
@@ -1256,14 +1021,39 @@ export default function Admin({ user }) {
                     Registrar Presença Manual
                   </button>
 
-                  <div style={{ borderTop: "1px solid rgba(255,255,255,.1)", margin: "16px 0 12px" }}></div>
-                  <h5 style={{ margin: "0 0 8px", color: "#e8eefc" }}>&#9203; Adicionar check-out em registro existente</h5>
-                  <p style={{ fontSize: "12px", color: "var(--text-dim)", margin: "0 0 10px" }}>
-                    Use quando o aluno marcou a entrada mas <b>esqueceu de bater a sa&iacute;da</b>. Preencha a <b>data</b> e o <b>hor&aacute;rio de sa&iacute;da</b> acima e clique abaixo.
+                  <div
+                    style={{
+                      borderTop: "1px solid rgba(255,255,255,.1)",
+                      margin: "16px 0 12px",
+                    }}
+                  ></div>
+                  <h5 style={{ margin: "0 0 8px", color: "#e8eefc" }}>
+                    &#9203; Adicionar check-out em registro existente
+                  </h5>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-dim)",
+                      margin: "0 0 10px",
+                    }}
+                  >
+                    Use quando o aluno marcou a entrada mas{" "}
+                    <b>esqueceu de bater a sa&iacute;da</b>. Preencha a{" "}
+                    <b>data</b> e o <b>hor&aacute;rio de sa&iacute;da</b> acima
+                    e clique abaixo.
                   </p>
                   <button
                     className="btn-ponto"
-                    style={{ width: "100%", background: "#193A70", color: "#fff", border: "none", padding: "10px", borderRadius: "8px", cursor: "pointer", fontWeight: 700 }}
+                    style={{
+                      width: "100%",
+                      background: "#193A70",
+                      color: "#fff",
+                      border: "none",
+                      padding: "10px",
+                      borderRadius: "8px",
+                      cursor: "pointer",
+                      fontWeight: 700,
+                    }}
                     onClick={adicionarCheckout}
                   >
                     &#9989; Adicionar Check-out
