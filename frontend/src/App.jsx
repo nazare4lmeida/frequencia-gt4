@@ -399,7 +399,7 @@ export default function App() {
   }
 
   // Presenças e faltas contam apenas aulas do calendário que já ocorreram.
-  const aulasOcorridas = aulasTurma.filter((d) => d <= hojeBrasilia());
+    const aulasOcorridas = aulasTurma.filter((d) => d < hojeBrasilia());
   const datasComPresenca = new Set(
     historico.map((h) => h.data?.slice(0, 10)).filter(Boolean),
   );
