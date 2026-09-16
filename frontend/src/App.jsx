@@ -335,6 +335,11 @@ export default function App() {
 
       const ehCheckin = !extra.nota;
 
+      // Presenca em UM toque: no check-in ja marcamos presente=true para o
+      // servidor preencher a saida automaticamente (aluno nao precisa voltar
+      // para bater check-out).
+      if (ehCheckin) payload.presente = true;
+
       // O servidor manda: se a conferência de local estiver desligada, nem
       // pedimos permissão de GPS. Sem resposta do servidor, caímos na
       // modalidade da turma definida no código.
@@ -399,7 +404,7 @@ export default function App() {
   }
 
   // Presenças e faltas contam apenas aulas do calendário que já ocorreram.
-    const aulasOcorridas = aulasTurma.filter((d) => d < hojeBrasilia());
+  const aulasOcorridas = aulasTurma.filter((d) => d <= hojeBrasilia());
   const datasComPresenca = new Set(
     historico.map((h) => h.data?.slice(0, 10)).filter(Boolean),
   );
@@ -450,7 +455,7 @@ export default function App() {
                 <button
                   className="btn-secondary"
                   style={{
-                    border: view === "admin" ? "2px solid var(--accent)" : "none",
+                    border: view === "admin" ? "2px solid #052768;" : "none",
                   }}
                   onClick={() => setView("admin")}
                 >
@@ -460,7 +465,7 @@ export default function App() {
                   className="btn-secondary"
                   style={{
                     border:
-                      view === "cronograma" ? "2px solid var(--accent)" : "none",
+                      view === "cronograma" ? "2px solid #052768;" : "none",
                   }}
                   onClick={() => setView("cronograma")}
                 >
@@ -469,7 +474,7 @@ export default function App() {
                 <button
                   className="btn-secondary"
                   style={{
-                    border: view === "limpeza" ? "2px solid var(--accent)" : "none",
+                    border: view === "limpeza" ? "2px solid #052768;" : "none",
                   }}
                   onClick={() => setView("limpeza")}
                 >

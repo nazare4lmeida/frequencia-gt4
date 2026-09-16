@@ -512,12 +512,27 @@ app.post("/api/ponto", verificarToken, async (req, res) => {
         }
       }
 
+      // MODO "PRESENCA UNICA": se o app enviar presente=true, ja preenche a saida
+      // com o fim da aula da turma (aluno nao precisa voltar para bater check-out).
+      let checkOutAuto = null;
+      if (req.body && req.body.presente === true) {
+        try {
+          const jan = cronogramaDb.getJanelas(cronograma, formacaoAluno);
+          if (jan && jan.aula && Number.isFinite(jan.aula.fim)) {
+            const dec = jan.aula.fim;
+            const h = Math.floor(dec), m = Math.round((dec - h) * 60);
+            checkOutAuto = `${hoje}T${String(h).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}:00-03:00`;
+          }
+        } catch (e) { checkOutAuto = null; }
+      }
+
       const { data: novoPonto, error: insError } = await supabase
         .from("presencas")
         .insert([{
           aluno_email: emailBusca,
           data: hoje,
           check_in: timestampCompleto,
+          check_out: checkOutAuto,
           checkin_latitude: latNum,
           checkin_longitude: lngNum,
           checkin_distancia_metros: distancia,
@@ -1756,15 +1771,21 @@ app.get("/api/professor/relatorio", verificarToken, async (req, res) => {
       .from("alunos").select("email, nome").eq("formacao", turmaId);
     const emails = (alunos || []).map((a) => a.email);
     let registros = [];
+    let justificadas = [];
     if (emails.length) {
       const { data: pres } = await supabase
         .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails);
       registros = pres || [];
+      const { data: just } = await supabase
+        .from("justificativas").select("aluno_email, data").eq("status", "aceita").in("aluno_email", emails);
+      justificadas = just || [];
     }
     res.json({
       turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede } : { id: turmaId, nome: turmaId },
       alunos: (alunos || []).sort((a, b) => String(a.nome || "").localeCompare(String(b.nome || ""))),
       registros,
+      justificadas,
+      datas: cronogramaDb.getAulas(cronograma, turmaId),
     });
   } catch (err) {
     console.error("ERRO professor/relatorio:", err);
@@ -1910,6 +1931,81 @@ app.post("/api/admin/presencas-turma/excluir", verificarToken, verificarAdmin, a
   } catch (err) {
     console.error("ERRO excluir presencas-turma:", err);
     res.status(500).json({ error: "Erro ao excluir as presencas da turma." });
+  }
+});
+
+// CHECK-OUT EM MASSA: completa a saida de todos que bateram entrada mas nao saida (numa data/turma)
+app.post("/api/admin/checkout-massa", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { turma, data } = req.body;
+    if (!data) return res.status(400).json({ error: "Informe a data." });
+    const cronograma = await cronogramaDb.carregarCronograma(supabase);
+    // fim da aula da turma (se turma informada) senao 22h
+    let fimDec = 22;
+    if (turma) { const jan = cronogramaDb.getJanelas(cronograma, turma); if (jan?.aula?.fim) fimDec = jan.aula.fim; }
+    const h = Math.floor(fimDec), m = Math.round((fimDec - h) * 60);
+    const co = `${data}T${String(h).padStart(2,"0")}:${String(m%60).padStart(2,"0")}:00-03:00`;
+
+    // alunos da turma (se informada) para filtrar
+    let emails = null;
+    if (turma) {
+      const { data: al } = await supabase.from("alunos").select("email").eq("formacao", turma);
+      emails = (al || []).map((a) => a.email);
+      if (!emails.length) return res.json({ ok: true, atualizados: 0 });
+    }
+    let q = supabase.from("presencas").update({ check_out: co })
+      .eq("data", data).not("check_in", "is", null).is("check_out", null);
+    if (emails) q = q.in("aluno_email", emails);
+    const { error } = await q;
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERRO checkout-massa:", err);
+    res.status(500).json({ error: "Erro no check-out em massa." });
+  }
+});
+
+// JUSTIFICATIVAS (para monitores responderem pelo sistema de presenca, sem wp-admin)
+app.get("/api/admin/justificativas", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const status = req.query.status || "pendente";
+    let q = supabase.from("justificativas")
+      .select("id, aluno_email, turma, data, motivo, documento_nome, documento_tipo, status, resposta, criado_em")
+      .order("data", { ascending: false });
+    if (status !== "todas") q = q.eq("status", status);
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ ok: true, justificativas: data || [] });
+  } catch (err) {
+    console.error("ERRO admin/justificativas:", err);
+    res.status(500).json({ error: "Erro ao carregar justificativas." });
+  }
+});
+
+app.patch("/api/admin/justificativa/:id", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, resposta } = req.body;
+    if (!["aceita", "recusada", "pendente"].includes(status)) return res.status(400).json({ error: "Status invalido." });
+    const { error } = await supabase.from("justificativas")
+      .update({ status, resposta: resposta ? String(resposta).slice(0, 1000) : null })
+      .eq("id", id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERRO admin/justificativa patch:", err);
+    res.status(500).json({ error: "Erro ao responder a justificativa." });
+  }
+});
+
+// baixar o documento (base64) de uma justificativa
+app.get("/api/admin/justificativa/:id/documento", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { data } = await supabase.from("justificativas").select("documento, documento_nome, documento_tipo").eq("id", req.params.id).maybeSingle();
+    if (!data || !data.documento) return res.status(404).json({ error: "Sem documento." });
+    res.json({ ok: true, documento: data.documento, nome: data.documento_nome, tipo: data.documento_tipo });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao baixar documento." });
   }
 });
 

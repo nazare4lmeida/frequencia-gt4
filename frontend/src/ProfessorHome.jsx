@@ -59,7 +59,7 @@ export default function ProfessorHome({ user }) {
       const data = await res.json();
       if (res.ok) {
         setRel(data);
-        const datas = [...new Set((data.registros || []).map((r) => String(r.data).slice(0, 10)))].sort().reverse();
+        const datas = [...new Set([...(data.datas||[]), ...(data.registros || []).map((r) => String(r.data).slice(0, 10))])].sort().reverse();
         if (datas.length && !dataSel) setDataSel(datas[0]);
       }
     } catch { /* silencioso */ }
@@ -178,7 +178,7 @@ export default function ProfessorHome({ user }) {
   const temCheckin = !!reg?.check_in;
   const temCheckout = !!reg?.check_out;
 
-  const datasDisp = rel ? [...new Set((rel.registros || []).map((r) => String(r.data).slice(0, 10)))].sort().reverse() : [];
+  const datasDisp = rel ? [...new Set([...(rel.datas||[]), ...(rel.registros || []).map((r) => String(r.data).slice(0, 10))])].sort().reverse() : [];
   const regsDoDia = rel ? (rel.registros || []).filter((r) => String(r.data).slice(0, 10) === dataSel) : [];
   const statusDoDia = {};
   regsDoDia.forEach((r) => { statusDoDia[r.aluno_email] = r; });
@@ -342,11 +342,15 @@ export default function ProfessorHome({ user }) {
                   {rel.alunos.map((a) => {
                     const r = statusDoDia[a.email];
                     const presente = !!r?.check_in;
+                    const justif = (rel.justificadas || []).some((j) => j.aluno_email === a.email && String(j.data).slice(0,10) === dataSel);
                     return (
                       <div key={a.email} style={{ display: "flex", alignItems: "center", padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,.06)", fontSize: 13, color: "#fff" }}>
                         <span style={{ flex: 1 }}>{a.nome}</span>
-                        <span style={{ width: 70, textAlign: "center", color: "var(--text-dim)" }}>{presente ? hhmm(r.check_in) : "--:--"}</span>
+                        <span style={{ width: 70, textAlign: "center", color: "var(--text-dim)" }}>{presente && !justif ? hhmm(r.check_in) : "--:--"}</span>
                         <span style={{ width: 130, textAlign: "center" }}>
+                          {justif ? (
+                            <span style={{ padding: "5px 10px", borderRadius: 7, fontSize: 11.5, fontWeight: 700, border: "1px solid #2563EB", background: "rgba(37,99,235,.15)", color: "#93c5fd" }}>Falta justificada</span>
+                          ) : (
                           <button type="button" disabled={!dataSel || salvandoCpf === a.email}
                             onClick={() => togglePresenca(a.email, presente)}
                             style={{ padding: "5px 12px", borderRadius: 7, cursor: "pointer", fontSize: 12, fontWeight: 700, border: "1px solid",
@@ -355,6 +359,7 @@ export default function ProfessorHome({ user }) {
                               color: presente ? "#4ade80" : "#fca5a5" }}>
                             {salvandoCpf === a.email ? "..." : presente ? "Presente" : "Falta"}
                           </button>
+                          )}
                         </span>
                       </div>
                     );

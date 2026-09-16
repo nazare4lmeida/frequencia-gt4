@@ -340,8 +340,122 @@ export default function GestaoRapida({ user, setView }) {
   if (carregando && !modalAberto)
     return <div className="app-wrapper">Carregando base de dados...</div>;
 
+  // ==== Check-out em massa + Justificativas (para monitores, sem wp-admin) ====
+  const [coData, setCoData] = useState(new Date().toISOString().split("T")[0]);
+  const [coTurma, setCoTurma] = useState("todos");
+  const [justs, setJusts] = useState([]);
+  const [justStatus, setJustStatus] = useState("pendente");
+  const [justResp, setJustResp] = useState({});
+
+  const carregarJusts = async (st = justStatus) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/justificativas?status=${st}`, { headers: { Authorization: `Bearer ${user.token}` } });
+      const d = await res.json();
+      if (res.ok) setJusts(d.justificativas || []);
+    } catch {}
+  };
+  useEffect(() => { carregarJusts(justStatus); /* eslint-disable-next-line */ }, [justStatus]);
+
+  const responderJust = async (id, status) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/justificativa/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ status, resposta: justResp[id] || "" }),
+      });
+      if (res.ok) { alert(status === "aceita" ? "Justificativa aceita (falta abonada)." : "Justificativa recusada."); carregarJusts(); }
+      else { const e = await res.json(); alert(e.error || "Erro."); }
+    } catch { alert("Erro de conexao."); }
+  };
+
+  const checkoutMassa = async () => {
+    if (!window.confirm("Completar o check-out de todos que bateram entrada mas nao saida nesta data?")) return;
+    try {
+      const res = await fetch(`${API_URL}/admin/checkout-massa`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
+        body: JSON.stringify({ data: coData, turma: coTurma === "todos" ? null : coTurma }),
+      });
+      const d = await res.json();
+      if (res.ok) alert("Check-out em massa concluido.");
+      else alert(d.error || "Erro.");
+    } catch { alert("Erro de conexao."); }
+  };
+
   return (
     <div className="app-wrapper">
+      {/* CHECK-OUT EM MASSA */}
+      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #0E7C57" }}>
+        <div style={{ padding: "14px 18px" }}>
+          <h3 style={{ margin: "0 0 4px", color: "#193A70" }}>&#9203; Check-out em massa</h3>
+          <p style={{ fontSize: 12.5, color: "var(--text-muted, #667)", margin: "0 0 12px" }}>Completa a sa&iacute;da de quem bateu entrada mas esqueceu o check-out, no hor&aacute;rio de fim da aula.</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div><label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Data</label>
+              <input type="date" className="input-modern" value={coData} onChange={(e) => setCoData(e.target.value)} /></div>
+            <div><label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Turma</label>
+              <select className="input-modern" value={coTurma} onChange={(e) => setCoTurma(e.target.value)} style={{ minWidth: 180 }}>
+                <option value="todos">Todas</option>
+                {(turmasDisponiveis || []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+              </select></div>
+            <button className="btn-accent" onClick={checkoutMassa}>Completar check-outs</button>
+          </div>
+        </div>
+      </div>
+
+      {/* JUSTIFICATIVAS */}
+      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #7C3AED" }}>
+        <div style={{ padding: "14px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+            <h3 style={{ margin: 0, color: "#193A70" }}>&#128221; Justificativas de falta</h3>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              {["pendente", "aceita", "recusada", "todas"].map((s) => (
+                <button key={s} onClick={() => setJustStatus(s)}
+                  style={{ padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1px solid #DCE4F0",
+                    background: justStatus === s ? "#193A70" : "#fff", color: justStatus === s ? "#fff" : "#193A70" }}>
+                  {s === "pendente" ? "Pendentes" : s === "aceita" ? "Aceitas" : s === "recusada" ? "Recusadas" : "Todas"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {justs.length === 0 ? (
+            <p style={{ fontSize: 13, color: "#667", padding: "10px 0" }}>Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}.</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {justs.map((j) => (
+                <div key={j.id} style={{ border: "1px solid #E7ECF4", borderRadius: 10, padding: "12px 14px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{j.aluno_email}</div>
+                      <div style={{ fontSize: 12, color: "#667" }}>{String(j.data).slice(0,10).split("-").reverse().join("/")}{j.turma ? " · " + j.turma : ""}</div>
+                    </div>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 100, height: "fit-content",
+                      background: j.status === "aceita" ? "#E3F5EC" : j.status === "recusada" ? "#FBE7E6" : "#FBF0DC",
+                      color: j.status === "aceita" ? "#0B7B4F" : j.status === "recusada" ? "#B3302F" : "#8A5810" }}>
+                      {j.status === "aceita" ? "Aceita (abonada)" : j.status === "recusada" ? "Recusada" : "Pendente"}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: 13, margin: "8px 0", color: "#334" }}>{j.motivo}</p>
+                  {j.documento_nome && (
+                    <a href={`${API_URL}/admin/justificativa/${j.id}/documento`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#0B5A94" }}>&#128206; {j.documento_nome}</a>
+                  )}
+                  {j.status === "pendente" && (
+                    <div style={{ marginTop: 10 }}>
+                      <input className="input-modern" placeholder="Mensagem ao aluno (opcional)" value={justResp[j.id] || ""}
+                        onChange={(e) => setJustResp({ ...justResp, [j.id]: e.target.value })} style={{ marginBottom: 8 }} />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button onClick={() => responderJust(j.id, "aceita")} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#0E7C57", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Aceitar (abonar)</button>
+                        <button onClick={() => responderJust(j.id, "recusada")} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #B3302F", background: "#fff", color: "#B3302F", fontWeight: 700, cursor: "pointer" }}>Recusar</button>
+                      </div>
+                    </div>
+                  )}
+                  {j.resposta && <div style={{ marginTop: 8, fontSize: 12.5, color: "#667", background: "#F4F7FC", borderRadius: 6, padding: "6px 10px" }}><b>Resposta:</b> {j.resposta}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="shadow-card">
         <div
           style={{
