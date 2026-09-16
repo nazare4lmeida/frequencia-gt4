@@ -9,6 +9,216 @@ import {
   hojeBrasilia,
 } from "./Constants";
 
+/* =========================================================
+   ESTILO DA PÁGINA — alinhado ao Dashboard / Home (tema escuro)
+   ========================================================= */
+const GR_CSS = `
+.gr-page{
+  --gr-bg:#0B1B33;
+  --gr-card:#11274A;
+  --gr-card-2:#0E2140;
+  --gr-line:rgba(255,255,255,.09);
+  --gr-line-strong:rgba(255,255,255,.16);
+  --gr-title:#EAF1FF;
+  --gr-text:#D3E0F5;
+  --gr-muted:#8FA6C8;
+  --gr-blue:#3B82F6;
+  --gr-green:#10B981;
+  --gr-red:#F04438;
+  --gr-amber:#F59E0B;
+  --gr-purple:#8B5CF6;
+  color:var(--gr-text);
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+
+/* ---------- Cartões ---------- */
+.gr-card{
+  background:linear-gradient(180deg,#12294D 0%,#0E2140 100%);
+  border:1px solid var(--gr-line);
+  border-radius:16px;
+  box-shadow:0 10px 28px rgba(0,0,0,.28);
+  overflow:hidden;
+}
+.gr-card--accent{ border-top:3px solid var(--gr-accent,#3B82F6); }
+.gr-card-body{ padding:20px 22px; }
+
+.gr-card-head{
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.gr-card-head h3{
+  margin:0; font-size:1.05rem; font-weight:800; letter-spacing:.2px;
+  color:var(--gr-title); display:flex; align-items:center; gap:8px;
+}
+.gr-sub{ margin:6px 0 16px; font-size:.8rem; color:var(--gr-muted); line-height:1.5; }
+.gr-spacer{ margin-left:auto; }
+
+/* ---------- Campos ---------- */
+.gr-field{ display:flex; flex-direction:column; gap:6px; }
+.gr-label{
+  font-size:.68rem; font-weight:700; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--gr-muted);
+}
+.gr-page .gr-input{
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--gr-line-strong);
+  border-radius:10px;
+  color:var(--gr-title);
+  padding:10px 12px;
+  font-size:.88rem;
+  font-family:inherit;
+  outline:none;
+  margin:0;
+  width:100%;
+  transition:border-color .15s, box-shadow .15s, background .15s;
+}
+.gr-page .gr-input::placeholder{ color:#6E85A8; }
+.gr-page .gr-input:focus{
+  border-color:var(--gr-blue);
+  background:rgba(59,130,246,.10);
+  box-shadow:0 0 0 3px rgba(59,130,246,.18);
+}
+.gr-page select.gr-input{ cursor:pointer; }
+.gr-page select.gr-input option{ background:#0E2140; color:#EAF1FF; }
+.gr-page .gr-input[type="date"],
+.gr-page .gr-input[type="time"]{ color-scheme:dark; }
+
+/* ---------- Botões ---------- */
+.gr-btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:7px;
+  padding:10px 16px; border-radius:10px; border:1px solid transparent;
+  font-size:.82rem; font-weight:700; font-family:inherit;
+  cursor:pointer; white-space:nowrap;
+  transition:transform .12s, filter .15s, background .15s, border-color .15s;
+}
+.gr-btn:hover{ transform:translateY(-1px); filter:brightness(1.08); }
+.gr-btn:active{ transform:translateY(0); }
+.gr-btn:disabled{ opacity:.45; cursor:default; transform:none; filter:none; }
+
+.gr-btn--primary{ background:linear-gradient(135deg,#2563EB,#3B82F6); color:#fff; box-shadow:0 6px 16px rgba(37,99,235,.35); }
+.gr-btn--green{ background:linear-gradient(135deg,#059669,#10B981); color:#fff; box-shadow:0 6px 16px rgba(16,185,129,.28); }
+.gr-btn--ghost{ background:rgba(255,255,255,.06); border-color:var(--gr-line-strong); color:var(--gr-text); }
+.gr-btn--ghost:hover{ background:rgba(255,255,255,.12); }
+.gr-btn--danger{ background:rgba(240,68,56,.12); border-color:rgba(240,68,56,.45); color:#FF8A80; }
+.gr-btn--danger:hover{ background:rgba(240,68,56,.22); }
+.gr-btn--sm{ padding:6px 12px; font-size:.72rem; border-radius:8px; }
+.gr-btn--block{ width:100%; }
+
+/* ---------- Abas / filtros ---------- */
+.gr-tabs{ display:flex; gap:6px; flex-wrap:wrap; }
+.gr-tab{
+  padding:7px 14px; border-radius:999px; font-size:.75rem; font-weight:700;
+  cursor:pointer; font-family:inherit;
+  background:rgba(255,255,255,.05); border:1px solid var(--gr-line-strong); color:var(--gr-muted);
+  transition:all .15s;
+}
+.gr-tab:hover{ color:var(--gr-title); border-color:var(--gr-blue); }
+.gr-tab.is-active{
+  background:linear-gradient(135deg,#2563EB,#3B82F6); border-color:transparent; color:#fff;
+  box-shadow:0 4px 12px rgba(37,99,235,.35);
+}
+
+/* ---------- Badges ---------- */
+.gr-badge{
+  font-size:.68rem; font-weight:800; letter-spacing:.03em;
+  padding:4px 11px; border-radius:999px; height:fit-content; white-space:nowrap;
+  border:1px solid transparent;
+}
+.gr-badge--ok{ background:rgba(16,185,129,.14); color:#34D399; border-color:rgba(16,185,129,.35); }
+.gr-badge--no{ background:rgba(240,68,56,.14); color:#FF8A80; border-color:rgba(240,68,56,.35); }
+.gr-badge--wait{ background:rgba(245,158,11,.14); color:#FBBF24; border-color:rgba(245,158,11,.35); }
+
+/* ---------- Item de lista (justificativas) ---------- */
+.gr-item{
+  background:rgba(255,255,255,.035);
+  border:1px solid var(--gr-line);
+  border-radius:12px;
+  padding:14px 16px;
+  transition:border-color .15s, background .15s;
+}
+.gr-item:hover{ border-color:var(--gr-line-strong); background:rgba(255,255,255,.055); }
+.gr-item-title{ font-weight:700; font-size:.85rem; color:var(--gr-title); word-break:break-all; }
+.gr-item-meta{ font-size:.72rem; color:var(--gr-muted); margin-top:2px; }
+.gr-item-text{ font-size:.85rem; margin:10px 0 0; color:var(--gr-text); line-height:1.55; }
+.gr-link{ font-size:.75rem; color:#7FB2FF; text-decoration:none; }
+.gr-link:hover{ text-decoration:underline; }
+.gr-reply{
+  margin-top:10px; font-size:.78rem; color:var(--gr-muted);
+  background:rgba(255,255,255,.05); border-left:3px solid var(--gr-blue);
+  border-radius:8px; padding:8px 12px;
+}
+
+/* ---------- KPIs ---------- */
+.gr-kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+.gr-kpi{
+  padding:14px 16px; border-radius:12px;
+  background:rgba(255,255,255,.04); border:1px solid var(--gr-line);
+}
+.gr-kpi-label{ font-size:.66rem; font-weight:700; letter-spacing:.09em; text-transform:uppercase; color:var(--gr-muted); }
+.gr-kpi-value{ font-size:1.7rem; font-weight:800; margin-top:4px; color:var(--gr-title); line-height:1.1; }
+.gr-kpi--red{ background:rgba(240,68,56,.09); border-color:rgba(240,68,56,.28); }
+.gr-kpi--red .gr-kpi-value{ color:#FF8A80; }
+.gr-kpi--amber{ background:rgba(245,158,11,.09); border-color:rgba(245,158,11,.28); }
+.gr-kpi--amber .gr-kpi-value{ color:#FBBF24; }
+
+/* ---------- Tabela ---------- */
+.gr-table-wrap{ overflow-x:auto; border:1px solid var(--gr-line); border-radius:12px; }
+.gr-table{ width:100%; border-collapse:collapse; font-size:.85rem; min-width:720px; }
+.gr-table thead th{
+  background:rgba(255,255,255,.05);
+  color:var(--gr-muted);
+  font-size:.66rem; font-weight:800; letter-spacing:.09em; text-transform:uppercase;
+  padding:12px 14px; text-align:left; white-space:nowrap;
+  border-bottom:1px solid var(--gr-line);
+}
+.gr-table tbody td{ padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.055); vertical-align:middle; }
+.gr-table tbody tr:last-child td{ border-bottom:none; }
+.gr-table tbody tr{ transition:background .15s; }
+.gr-table tbody tr:hover{ background:rgba(255,255,255,.045); }
+.gr-table tbody tr.is-risk{ background:rgba(240,68,56,.07); }
+.gr-table tbody tr.is-risk:hover{ background:rgba(240,68,56,.12); }
+.gr-cell-main{ font-weight:600; color:var(--gr-title); word-break:break-all; }
+.gr-cell-sub{ font-size:.66rem; color:var(--gr-muted); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+.gr-num{ text-align:center; font-weight:800; font-size:.95rem; }
+.gr-num--ok{ color:#60A5FA; }
+.gr-num--bad{ color:#FF8A80; }
+.gr-num--zero{ color:var(--gr-muted); }
+.gr-empty{ text-align:center; padding:36px 0; color:var(--gr-muted); font-size:.85rem; }
+
+/* ---------- Paginação ---------- */
+.gr-pager{
+  display:flex; align-items:center; justify-content:center; gap:14px;
+  margin-top:16px; font-size:.78rem; color:var(--gr-muted); flex-wrap:wrap;
+}
+
+/* ---------- Modal ---------- */
+.gr-modal-overlay{
+  position:fixed; inset:0; z-index:9999;
+  background:rgba(5,12,25,.72); backdrop-filter:blur(6px);
+  display:flex; align-items:center; justify-content:center; padding:20px;
+}
+.gr-modal{
+  background:linear-gradient(180deg,#12294D 0%,#0C1D38 100%);
+  border:1px solid var(--gr-line-strong);
+  border-radius:18px;
+  box-shadow:0 24px 60px rgba(0,0,0,.55);
+  width:100%; max-width:620px; max-height:88vh; overflow-y:auto;
+  padding:22px;
+}
+.gr-modal h3{ margin:0; font-size:1.05rem; color:var(--gr-title); font-weight:800; }
+.gr-modal h5{ margin:0 0 10px; font-size:.82rem; color:var(--gr-title); font-weight:800; }
+.gr-panel{ background:rgba(0,0,0,.22); border:1px solid var(--gr-line); border-radius:12px; padding:16px; }
+.gr-divider{ border-top:1px solid var(--gr-line); margin:16px 0 14px; }
+
+@media (max-width:640px){
+  .gr-card-body{ padding:16px; }
+  .gr-grid-2,.gr-grid-3{ grid-template-columns:1fr !important; }
+}
+`;
+
+
 const horaAgoraBrasilia = () =>
   new Date().toLocaleTimeString("pt-BR", {
     timeZone: "America/Sao_Paulo",
@@ -384,411 +594,379 @@ export default function GestaoRapida({ user, setView }) {
     } catch { alert("Erro de conexao."); }
   };
 
+
   if (carregando && !modalAberto)
-    return <div className="app-wrapper">Carregando base de dados...</div>;
+    return (
+      <div className="app-wrapper gr-page">
+        <style>{GR_CSS}</style>
+        <div className="gr-card">
+          <div className="gr-card-body" style={{ textAlign: "center", padding: "48px 22px", color: "var(--gr-muted)" }}>
+            ⏳ Carregando base de dados...
+          </div>
+        </div>
+      </div>
+    );
+
+  const totalPagJust = Math.max(1, Math.ceil(justs.length / JUST_POR));
+  const totalPagAl = Math.max(1, Math.ceil(alunosFiltrados.length / AL_POR));
 
   return (
-    <div className="app-wrapper">
-      {/* CHECK-OUT EM MASSA */}
-      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #0E7C57", background: "#fff", border: "1px solid #E7ECF4", borderLeftWidth: "4px", borderRadius: 12 }}>
-        <div style={{ padding: "14px 18px" }}>
-          <h3 style={{ margin: "0 0 4px", color: "#193A70" }}>&#9203; Check-out em massa</h3>
-          <p style={{ fontSize: 12.5, color: "var(--text-muted, #667)", margin: "0 0 12px" }}>Completa a sa&iacute;da de quem bateu entrada mas esqueceu o check-out, no hor&aacute;rio de fim da aula.</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div><label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Data</label>
-              <input type="date" className="input-modern" value={coData} onChange={(e) => setCoData(e.target.value)} /></div>
-            <div><label style={{ fontSize: 12, display: "block", marginBottom: 4 }}>Turma</label>
-              <select className="input-modern" value={coTurma} onChange={(e) => setCoTurma(e.target.value)} style={{ minWidth: 180 }}>
+    <div className="app-wrapper gr-page">
+      <style>{GR_CSS}</style>
+
+      {/* ======================= CHECK-OUT EM MASSA ======================= */}
+      <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#10B981" }}>
+        <div className="gr-card-body">
+          <div className="gr-card-head" style={{ marginBottom: 0 }}>
+            <h3>⏳ Check-out em massa</h3>
+          </div>
+          <p className="gr-sub">
+            Completa a saída de quem bateu entrada mas esqueceu o check-out, no horário de fim da aula.
+          </p>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div className="gr-field" style={{ minWidth: 170 }}>
+              <label className="gr-label">Data</label>
+              <input
+                type="date"
+                className="gr-input"
+                value={coData}
+                onChange={(e) => setCoData(e.target.value)}
+              />
+            </div>
+            <div className="gr-field" style={{ minWidth: 200 }}>
+              <label className="gr-label">Turma</label>
+              <select
+                className="gr-input"
+                value={coTurma}
+                onChange={(e) => setCoTurma(e.target.value)}
+              >
                 <option value="todos">Todas</option>
-                {(turmasDisponiveis || []).map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-              </select></div>
-            <button className="btn-accent" onClick={checkoutMassa}>Completar check-outs</button>
+                {(turmasDisponiveis || []).map((t) => (
+                  <option key={t.id} value={t.id}>{t.nome}</option>
+                ))}
+              </select>
+            </div>
+            <button className="gr-btn gr-btn--green" onClick={checkoutMassa}>
+              ✔ Completar check-outs
+            </button>
           </div>
         </div>
       </div>
 
-      {/* JUSTIFICATIVAS */}
-      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #7C3AED", background: "#fff", border: "1px solid #E7ECF4", borderLeftWidth: "4px", borderRadius: 12 }}>
-        <div style={{ padding: "14px 18px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-            <h3 style={{ margin: 0, color: "#193A70" }}>&#128221; Justificativas de falta</h3>
-            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+      {/* ======================= JUSTIFICATIVAS ======================= */}
+      <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#8B5CF6" }}>
+        <div className="gr-card-body">
+          <div className="gr-card-head">
+            <h3>📝 Justificativas de falta</h3>
+            <div className="gr-tabs gr-spacer">
               {["pendente", "aceita", "recusada", "todas"].map((s) => (
-                <button key={s} onClick={() => setJustStatus(s)}
-                  style={{ padding: "5px 12px", borderRadius: 7, fontSize: 12, fontWeight: 700, cursor: "pointer", border: "1px solid #DCE4F0",
-                    background: justStatus === s ? "#193A70" : "#fff", color: justStatus === s ? "#fff" : "#193A70" }}>
+                <button
+                  key={s}
+                  className={`gr-tab${justStatus === s ? " is-active" : ""}`}
+                  onClick={() => setJustStatus(s)}
+                >
                   {s === "pendente" ? "Pendentes" : s === "aceita" ? "Aceitas" : s === "recusada" ? "Recusadas" : "Todas"}
                 </button>
               ))}
             </div>
           </div>
+
           {justs.length === 0 ? (
-            <p style={{ fontSize: 13, color: "#667", padding: "10px 0" }}>Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}.</p>
+            <div className="gr-empty">
+              Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}.
+            </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {justs.slice((justPag-1)*JUST_POR, justPag*JUST_POR).map((j) => (
-                <div key={j.id} style={{ border: "1px solid #E7ECF4", borderRadius: 10, padding: "12px 14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {justs.slice((justPag - 1) * JUST_POR, justPag * JUST_POR).map((j) => (
+                <div key={j.id} className="gr-item">
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <div>
-                      <div style={{ fontWeight: 700, fontSize: 13.5 }}>{j.aluno_email}</div>
-                      <div style={{ fontSize: 12, color: "#667" }}>{String(j.data).slice(0,10).split("-").reverse().join("/")}{j.turma ? " · " + j.turma : ""}</div>
+                      <div className="gr-item-title">{j.aluno_email}</div>
+                      <div className="gr-item-meta">
+                        {String(j.data).slice(0, 10).split("-").reverse().join("/")}
+                        {j.turma ? " · " + j.turma : ""}
+                      </div>
                     </div>
-                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 100, height: "fit-content",
-                      background: j.status === "aceita" ? "#E3F5EC" : j.status === "recusada" ? "#FBE7E6" : "#FBF0DC",
-                      color: j.status === "aceita" ? "#0B7B4F" : j.status === "recusada" ? "#B3302F" : "#8A5810" }}>
+                    <span
+                      className={`gr-badge ${
+                        j.status === "aceita" ? "gr-badge--ok" : j.status === "recusada" ? "gr-badge--no" : "gr-badge--wait"
+                      }`}
+                    >
                       {j.status === "aceita" ? "Aceita (abonada)" : j.status === "recusada" ? "Recusada" : "Pendente"}
                     </span>
                   </div>
-                  <p style={{ fontSize: 13, margin: "8px 0", color: "#334" }}>{j.motivo}</p>
+
+                  <p className="gr-item-text">{j.motivo}</p>
+
                   {j.documento_nome && (
-                    <a href={`${API_URL}/admin/justificativa/${j.id}/documento`} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "#0B5A94" }}>&#128206; {j.documento_nome}</a>
+                    <a
+                      className="gr-link"
+                      href={`${API_URL}/admin/justificativa/${j.id}/documento`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ display: "inline-block", marginTop: 8 }}
+                    >
+                      📎 {j.documento_nome}
+                    </a>
                   )}
+
                   {j.status === "pendente" && (
-                    <div style={{ marginTop: 10 }}>
-                      <input className="input-modern" placeholder="Mensagem ao aluno (opcional)" value={justResp[j.id] || ""}
-                        onChange={(e) => setJustResp({ ...justResp, [j.id]: e.target.value })} style={{ marginBottom: 8 }} />
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button onClick={() => responderJust(j.id, "aceita")} style={{ padding: "7px 14px", borderRadius: 8, border: "none", background: "#0E7C57", color: "#fff", fontWeight: 700, cursor: "pointer" }}>Aceitar (abonar)</button>
-                        <button onClick={() => responderJust(j.id, "recusada")} style={{ padding: "7px 14px", borderRadius: 8, border: "1px solid #B3302F", background: "#fff", color: "#B3302F", fontWeight: 700, cursor: "pointer" }}>Recusar</button>
+                    <div style={{ marginTop: 12 }}>
+                      <input
+                        className="gr-input"
+                        placeholder="Mensagem ao aluno (opcional)"
+                        value={justResp[j.id] || ""}
+                        onChange={(e) => setJustResp({ ...justResp, [j.id]: e.target.value })}
+                        style={{ marginBottom: 10 }}
+                      />
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <button className="gr-btn gr-btn--green gr-btn--sm" onClick={() => responderJust(j.id, "aceita")}>
+                          Aceitar (abonar)
+                        </button>
+                        <button className="gr-btn gr-btn--danger gr-btn--sm" onClick={() => responderJust(j.id, "recusada")}>
+                          Recusar
+                        </button>
                       </div>
                     </div>
                   )}
-                  {j.resposta && <div style={{ marginTop: 8, fontSize: 12.5, color: "#667", background: "#F4F7FC", borderRadius: 6, padding: "6px 10px" }}><b>Resposta:</b> {j.resposta}</div>}
+
+                  {j.resposta && (
+                    <div className="gr-reply">
+                      <b style={{ color: "var(--gr-title)" }}>Resposta:</b> {j.resposta}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
+
           {justs.length > JUST_POR && (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 12, fontSize: 13, color: "#586B88" }}>
-              <button onClick={() => setJustPag((p) => Math.max(1, p - 1))} disabled={justPag <= 1}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: justPag<=1?"default":"pointer", opacity: justPag<=1?.5:1 }}>&lsaquo; anterior</button>
-              <span>Página {justPag} de {Math.ceil(justs.length / JUST_POR)}</span>
-              <button onClick={() => setJustPag((p) => Math.min(Math.ceil(justs.length / JUST_POR), p + 1))} disabled={justPag >= Math.ceil(justs.length / JUST_POR)}
-                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: "pointer", opacity: justPag>=Math.ceil(justs.length/JUST_POR)?.5:1 }}>próxima &rsaquo;</button>
+            <div className="gr-pager">
+              <button
+                className="gr-btn gr-btn--ghost gr-btn--sm"
+                onClick={() => setJustPag((p) => Math.max(1, p - 1))}
+                disabled={justPag <= 1}
+              >
+                ‹ anterior
+              </button>
+              <span>Página {justPag} de {totalPagJust}</span>
+              <button
+                className="gr-btn gr-btn--ghost gr-btn--sm"
+                onClick={() => setJustPag((p) => Math.min(totalPagJust, p + 1))}
+                disabled={justPag >= totalPagJust}
+              >
+                próxima ›
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      <div className="shadow-card" style={{ background: "#fff", border: "1px solid #E7ECF4", borderRadius: 12 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "20px",
-            flexWrap: "wrap",
-            gap: "12px",
-          }}
-        >
-          <div>
-            <h3 style={{ color: "#a9a9a9" }}>
-              📊 Auditoria e Edição de Cadastros
-            </h3>
-            <p style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-              {filtroTurma === "todos"
-                ? "Presenças e faltas são contadas pelo calendário de cada turma."
-                : turmaInfo(filtroTurma)
-                  ? `${nomeTurma(filtroTurma)}: ${turmaInfo(filtroTurma).aulasOcorridas} de ${turmaInfo(filtroTurma).totalAulas} aulas já ocorreram.`
-                  : `${nomeTurma(filtroTurma)}: ${getAulasOcorridas(filtroTurma).length} de ${getTotalAulas(filtroTurma)} aulas já ocorreram.`}
-            </p>
-          </div>
+      {/* ======================= AUDITORIA / CADASTROS ======================= */}
+      <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#3B82F6" }}>
+        <div className="gr-card-body">
+          <div className="gr-card-head" style={{ alignItems: "flex-start" }}>
+            <div>
+              <h3>📊 Auditoria e Edição de Cadastros</h3>
+              <p className="gr-sub" style={{ margin: "6px 0 0" }}>
+                {filtroTurma === "todos"
+                  ? "Presenças e faltas são contadas pelo calendário de cada turma."
+                  : turmaInfo(filtroTurma)
+                    ? `${nomeTurma(filtroTurma)}: ${turmaInfo(filtroTurma).aulasOcorridas} de ${turmaInfo(filtroTurma).totalAulas} aulas já ocorreram.`
+                    : `${nomeTurma(filtroTurma)}: ${getAulasOcorridas(filtroTurma).length} de ${getTotalAulas(filtroTurma)} aulas já ocorreram.`}
+              </p>
+            </div>
 
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <button
-              onClick={exportarFaltosos}
-              className="btn-secondary"
-              style={{ border: "1px solid #ef4444", color: "#ef4444" }}
-            >
-              Exportar Faltosos
-            </button>
-            <select
-              className="input-modern"
-              style={{ width: "200px", margin: 0 }}
-              value={filtroTurma}
-              onChange={(e) => setFiltroTurma(e.target.value)}
-            >
-              <option value="todos">Todas as Formações</option>
-              {(turmasDisponiveis.length ? turmasDisponiveis : FORMACOES).map(
-                (t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nome}
-                  </option>
-                ),
-              )}
-            </select>
-            {typeof setView === "function" && (
-              <button onClick={() => setView("home")} className="btn-secondary">
-                🏠 Início
+            <div className="gr-spacer" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <button className="gr-btn gr-btn--danger" onClick={exportarFaltosos}>
+                ⬇ Exportar Faltosos
               </button>
-            )}
-            <button onClick={() => setView("admin")} className="btn-secondary">
-              Voltar
-            </button>
-          </div>
-        </div>
-
-        {/* BUSCA E ORDENAÇÃO */}
-        <div
-          style={{
-            display: "flex",
-            gap: "10px",
-            marginBottom: "15px",
-            flexWrap: "wrap",
-          }}
-        >
-          <input
-            type="text"
-            className="input-modern"
-            style={{ flex: 1, minWidth: "220px", margin: 0 }}
-            placeholder="Buscar por nome ou e-mail..."
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-          />
-          <select
-            className="input-modern"
-            style={{ width: "200px", margin: 0 }}
-            value={ordenacao}
-            onChange={(e) => setOrdenacao(e.target.value)}
-          >
-            <option value="nome">Ordenar: Nome (A-Z)</option>
-            <option value="faltas">Ordenar: Mais faltas primeiro</option>
-            <option value="presencas">Ordenar: Mais presenças primeiro</option>
-          </select>
-        </div>
-
-        {/* RESUMO RÁPIDO */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-            gap: "10px",
-            marginBottom: "20px",
-          }}
-        >
-          <div
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
-            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
-              ALUNOS NA LISTA
-            </div>
-            <div style={{ fontSize: "1.4rem", fontWeight: "bold" }}>
-              {resumo.total}
+              <select
+                className="gr-input"
+                style={{ width: 210 }}
+                value={filtroTurma}
+                onChange={(e) => setFiltroTurma(e.target.value)}
+              >
+                <option value="todos">Todas as Formações</option>
+                {(turmasDisponiveis.length ? turmasDisponiveis : FORMACOES).map((t) => (
+                  <option key={t.id} value={t.id}>{t.nome}</option>
+                ))}
+              </select>
+              {typeof setView === "function" && (
+                <button className="gr-btn gr-btn--ghost" onClick={() => setView("home")}>
+                  🏠 Início
+                </button>
+              )}
+              <button className="gr-btn gr-btn--ghost" onClick={() => setView("admin")}>
+                Voltar
+              </button>
             </div>
           </div>
-          <div
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              background: "rgba(239, 68, 68, 0.08)",
-              border: "1px solid rgba(239, 68, 68, 0.3)",
-            }}
-          >
-            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
-              EM RISCO (+2 faltas)
-            </div>
-            <div
-              style={{ fontSize: "1.4rem", fontWeight: "bold", color: "#ef4444" }}
+
+          {/* BUSCA E ORDENAÇÃO */}
+          <div style={{ display: "flex", gap: 10, marginBottom: 18, flexWrap: "wrap" }}>
+            <input
+              type="text"
+              className="gr-input"
+              style={{ flex: 1, minWidth: 220 }}
+              placeholder="🔍  Buscar por nome ou e-mail..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+            />
+            <select
+              className="gr-input"
+              style={{ width: 240 }}
+              value={ordenacao}
+              onChange={(e) => setOrdenacao(e.target.value)}
             >
-              {resumo.emRisco}
-            </div>
+              <option value="nome">Ordenar: Nome (A-Z)</option>
+              <option value="faltas">Ordenar: Mais faltas primeiro</option>
+              <option value="presencas">Ordenar: Mais presenças primeiro</option>
+            </select>
           </div>
-          <div
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              background: "rgba(245, 158, 11, 0.08)",
-              border: "1px solid rgba(245, 158, 11, 0.3)",
-            }}
-          >
-            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
-              CADASTRO SEM NOME
-            </div>
-            <div
-              style={{ fontSize: "1.4rem", fontWeight: "bold", color: "#f59e0b" }}
-            >
-              {resumo.semNome}
-            </div>
-          </div>
-          <div
-            style={{
-              padding: "12px",
-              borderRadius: "8px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
-            <div style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}>
-              MÉDIA DE PRESENÇAS
-            </div>
-            <div style={{ fontSize: "1.4rem", fontWeight: "bold" }}>
-              {resumo.mediaPresencas}
-            </div>
-          </div>
-        </div>
 
-        <table className="historico-table">
-          <thead>
-            <tr>
-              <th style={{ width: "25%" }}>ALUNO (E-MAIL)</th>
-              <th style={{ textAlign: "center" }}>PRESENÇAS</th>
-              <th style={{ textAlign: "center" }}>FALTAS</th>
-              <th style={{ textAlign: "center" }}>NOME PARA CERTIFICADO</th>
-              <th style={{ width: "120px", textAlign: "right" }}>AÇÕES</th>
-            </tr>
-          </thead>
-          <tbody>
-            {alunosFiltrados.slice((alPag-1)*AL_POR, alPag*AL_POR).map((aluno) => {
-              const numFaltas = aluno.total_faltas || 0;
-              const status = statusSalva[aluno.email];
+          {/* RESUMO RÁPIDO */}
+          <div className="gr-kpis">
+            <div className="gr-kpi">
+              <div className="gr-kpi-label">Alunos na lista</div>
+              <div className="gr-kpi-value">{resumo.total}</div>
+            </div>
+            <div className="gr-kpi gr-kpi--red">
+              <div className="gr-kpi-label">Em risco (+2 faltas)</div>
+              <div className="gr-kpi-value">{resumo.emRisco}</div>
+            </div>
+            <div className="gr-kpi gr-kpi--amber">
+              <div className="gr-kpi-label">Cadastro sem nome</div>
+              <div className="gr-kpi-value">{resumo.semNome}</div>
+            </div>
+            <div className="gr-kpi">
+              <div className="gr-kpi-label">Média de presenças</div>
+              <div className="gr-kpi-value">{resumo.mediaPresencas}</div>
+            </div>
+          </div>
 
-              return (
-                <tr
-                  key={aluno.email}
-                  style={{
-                    background:
-                      numFaltas > 2 ? "rgba(239, 68, 68, 0.05)" : "transparent",
-                  }}
-                >
-                  <td style={{ fontSize: "0.8rem" }}>
-                    <div style={{ fontWeight: "600" }}>{aluno.email}</div>
-                    <div
-                      style={{
-                        fontSize: "0.65rem",
-                        color: "var(--text-dim)",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {aluno.turma_nome || nomeTurma(aluno.formacao)}
-                    </div>
-                  </td>
-                  <td
-                    style={{
-                      textAlign: "center",
-                      fontWeight: "bold",
-                      color: "#152548",
-                    }}
-                  >
-                    {aluno.total_presencas || 0}
-                  </td>
-                  <td
-                    style={{
-                      textAlign: "center",
-                      color: numFaltas > 0 ? "#ef4444" : "var(--text-dim)",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    {numFaltas}
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "5px",
-                      }}
-                    >
-                      <input
-                        type="text"
-                        className="input-modern"
-                        style={{
-                          margin: 0,
-                          padding: "5px 10px",
-                          fontSize: "0.85rem",
-                          borderColor:
-                            status === "ok"
-                              ? "#10b981"
-                              : status === "erro"
-                                ? "#ef4444"
-                                : "var(--border-subtle)",
-                          flex: 1,
-                        }}
-                        defaultValue={aluno.nome || ""}
-                        onBlur={(e) => salvarNome(aluno.email, e.target.value)}
-                        placeholder="Nome não preenchido..."
-                      />
-                      <span style={{ width: "20px" }}>
-                        {status === "salvando" && "⏳"}
-                        {status === "ok" && "✅"}
-                        {status === "erro" && "❌"}
-                      </span>
-                    </div>
-                  </td>
-                  <td style={{ textAlign: "right" }}>
-                    <button
-                      onClick={() => verDetalhes(aluno)}
-                      className="btn-secondary"
-                      style={{ fontSize: "0.65rem", padding: "5px 8px" }}
-                    >
-                      Gerenciar
-                    </button>
-                  </td>
+          {/* TABELA */}
+          <div className="gr-table-wrap">
+            <table className="gr-table">
+              <thead>
+                <tr>
+                  <th style={{ width: "28%" }}>Aluno (e-mail)</th>
+                  <th style={{ textAlign: "center", width: 110 }}>Presenças</th>
+                  <th style={{ textAlign: "center", width: 90 }}>Faltas</th>
+                  <th>Nome para certificado</th>
+                  <th style={{ width: 120, textAlign: "right" }}>Ações</th>
                 </tr>
-              );
-            })}
-            {alunosFiltrados.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  style={{
-                    textAlign: "center",
-                    padding: "30px 0",
-                    color: "var(--text-dim)",
-                  }}
-                >
-                  Nenhum aluno encontrado com esses filtros.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {alunosFiltrados.length > AL_POR && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 0 4px", fontSize: 13, color: "#586B88" }}>
-            <button onClick={() => setAlPag((p) => Math.max(1, p - 1))} disabled={alPag <= 1}
-              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: alPag<=1?"default":"pointer", opacity: alPag<=1?.5:1 }}>&lsaquo; anterior</button>
-            <span>Mostrando {Math.min((alPag-1)*AL_POR+1, alunosFiltrados.length)}–{Math.min(alPag*AL_POR, alunosFiltrados.length)} de {alunosFiltrados.length} · Página {alPag}/{Math.ceil(alunosFiltrados.length / AL_POR)}</span>
-            <button onClick={() => setAlPag((p) => Math.min(Math.ceil(alunosFiltrados.length / AL_POR), p + 1))} disabled={alPag >= Math.ceil(alunosFiltrados.length / AL_POR)}
-              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: "pointer", opacity: alPag>=Math.ceil(alunosFiltrados.length/AL_POR)?.5:1 }}>próxima &rsaquo;</button>
+              </thead>
+              <tbody>
+                {alunosFiltrados.slice((alPag - 1) * AL_POR, alPag * AL_POR).map((aluno) => {
+                  const numFaltas = aluno.total_faltas || 0;
+                  const status = statusSalva[aluno.email];
+
+                  return (
+                    <tr key={aluno.email} className={numFaltas > 2 ? "is-risk" : ""}>
+                      <td>
+                        <div className="gr-cell-main">{aluno.email}</div>
+                        <div className="gr-cell-sub">{aluno.turma_nome || nomeTurma(aluno.formacao)}</div>
+                      </td>
+                      <td className="gr-num gr-num--ok">{aluno.total_presencas || 0}</td>
+                      <td className={`gr-num ${numFaltas > 0 ? "gr-num--bad" : "gr-num--zero"}`}>{numFaltas}</td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <input
+                            type="text"
+                            className="gr-input"
+                            style={{
+                              padding: "7px 10px",
+                              fontSize: ".82rem",
+                              flex: 1,
+                              borderColor:
+                                status === "ok" ? "#10B981" : status === "erro" ? "#F04438" : undefined,
+                            }}
+                            defaultValue={aluno.nome || ""}
+                            onBlur={(e) => salvarNome(aluno.email, e.target.value)}
+                            placeholder="Nome não preenchido..."
+                          />
+                          <span style={{ width: 18, fontSize: ".8rem" }}>
+                            {status === "salvando" && "⏳"}
+                            {status === "ok" && "✅"}
+                            {status === "erro" && "❌"}
+                          </span>
+                        </div>
+                      </td>
+                      <td style={{ textAlign: "right" }}>
+                        <button className="gr-btn gr-btn--ghost gr-btn--sm" onClick={() => verDetalhes(aluno)}>
+                          Gerenciar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {alunosFiltrados.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="gr-empty">
+                      Nenhum aluno encontrado com esses filtros.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+
+          {alunosFiltrados.length > AL_POR && (
+            <div className="gr-pager">
+              <button
+                className="gr-btn gr-btn--ghost gr-btn--sm"
+                onClick={() => setAlPag((p) => Math.max(1, p - 1))}
+                disabled={alPag <= 1}
+              >
+                ‹ anterior
+              </button>
+              <span>
+                Mostrando {Math.min((alPag - 1) * AL_POR + 1, alunosFiltrados.length)}–
+                {Math.min(alPag * AL_POR, alunosFiltrados.length)} de {alunosFiltrados.length} · Página {alPag}/{totalPagAl}
+              </span>
+              <button
+                className="gr-btn gr-btn--ghost gr-btn--sm"
+                onClick={() => setAlPag((p) => Math.min(totalPagAl, p + 1))}
+                disabled={alPag >= totalPagAl}
+              >
+                próxima ›
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* ======================= MODAL ======================= */}
       {modalAberto && alunoSelecionado && (
-        <div className="modal-overlay">
-          <div
-            className="modal-content shadow-card"
-            style={{ maxWidth: "600px", width: "95%" }}
-          >
+        <div className="gr-modal-overlay" onClick={() => setModalAberto(false)}>
+          <div className="gr-modal" onClick={(e) => e.stopPropagation()}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "20px",
+                alignItems: "center",
+                gap: 12,
+                flexWrap: "wrap",
+                marginBottom: 18,
               }}
             >
-              <h3>{alunoSelecionado.nome}</h3>
-              <div style={{ display: "flex", gap: "5px" }}>
+              <div>
+                <h3>{alunoSelecionado.nome || "Sem nome"}</h3>
+                <div className="gr-item-meta">{alunoSelecionado.email}</div>
+              </div>
+              <div className="gr-tabs">
                 <button
+                  className={`gr-tab${!editando ? " is-active" : ""}`}
                   onClick={() => setEditando(false)}
-                  className="btn-secondary"
-                  style={{
-                    background: !editando ? "#152548" : "transparent",
-                    color: !editando ? "white" : "inherit",
-                  }}
                 >
                   Histórico
                 </button>
                 <button
+                  className={`gr-tab${editando ? " is-active" : ""}`}
                   onClick={() => setEditando(true)}
-                  className="btn-secondary"
-                  style={{
-                    background: editando ? "#152548" : "transparent",
-                    color: editando ? "white" : "inherit",
-                  }}
                 >
                   Editar/Manual
                 </button>
@@ -796,229 +974,110 @@ export default function GestaoRapida({ user, setView }) {
             </div>
 
             {!editando ? (
-              <div
-                style={{
-                  maxHeight: "300px",
-                  overflowY: "auto",
-                  marginBottom: "20px",
-                }}
-              >
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: "0.85rem",
-                  }}
-                >
+              <div className="gr-table-wrap" style={{ maxHeight: 320, overflowY: "auto" }}>
+                <table className="gr-table" style={{ minWidth: 0 }}>
                   <thead>
-                    <tr
-                      style={{
-                        borderBottom: "2px solid var(--border-subtle)",
-                        textAlign: "left",
-                      }}
-                    >
-                      <th style={{ padding: "8px" }}>Data</th>
+                    <tr>
+                      <th>Data</th>
                       <th>Entrada</th>
                       <th>Saída</th>
                     </tr>
                   </thead>
                   <tbody>
                     {historicoAluno.map((h, i) => (
-                      <tr
-                        key={i}
-                        style={{
-                          borderBottom: "1px solid var(--border-subtle)",
-                        }}
-                      >
-                        <td style={{ padding: "8px" }}>
-                          {new Date(h.data).toLocaleDateString("pt-BR", {
-                            timeZone: "UTC",
-                          })}
-                        </td>
+                      <tr key={i}>
+                        <td>{new Date(h.data).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</td>
                         <td>{h.check_in || "--:--"}</td>
                         <td>{h.check_out || "--:--"}</td>
                       </tr>
                     ))}
+                    {historicoAluno.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="gr-empty">Sem registros de frequência.</td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "20px",
-                }}
-              >
-                <div
-                  style={{
-                    padding: "15px",
-                    background: "rgba(0,0,0,0.2)",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <h5 style={{ marginTop: 0 }}>Editar Cadastro</h5>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr",
-                      gap: "10px",
-                      marginTop: "10px",
-                    }}
-                  >
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {/* Editar cadastro */}
+                <div className="gr-panel">
+                  <h5>✏️ Editar Cadastro</h5>
+                  <div className="gr-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                     <input
-                      className="input-modern"
+                      className="gr-input"
                       value={dadosEdicao.nome}
-                      onChange={(e) =>
-                        setDadosEdicao({ ...dadosEdicao, nome: e.target.value })
-                      }
+                      onChange={(e) => setDadosEdicao({ ...dadosEdicao, nome: e.target.value })}
                       placeholder="Nome"
                     />
                     <input
-                      className="input-modern"
+                      className="gr-input"
                       value={dadosEdicao.email}
-                      onChange={(e) =>
-                        setDadosEdicao({
-                          ...dadosEdicao,
-                          email: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setDadosEdicao({ ...dadosEdicao, email: e.target.value })}
                       placeholder="Email"
                     />
                     <input
                       type="date"
-                      className="input-modern"
+                      className="gr-input"
                       value={dadosEdicao.data_nascimento}
-                      onChange={(e) =>
-                        setDadosEdicao({
-                          ...dadosEdicao,
-                          data_nascimento: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setDadosEdicao({ ...dadosEdicao, data_nascimento: e.target.value })}
                       placeholder="Data de Nascimento"
                     />
                   </div>
-                  <button
-                    className="btn-secondary"
-                    style={{ marginTop: "10px", width: "100%" }}
-                    onClick={salvarEdicao}
-                  >
+                  <button className="gr-btn gr-btn--primary gr-btn--block" style={{ marginTop: 12 }} onClick={salvarEdicao}>
                     Salvar Alterações
                   </button>
                   <button
-                    className="btn-secondary"
-                    style={{
-                      marginTop: "5px",
-                      width: "100%",
-                      border: "1px solid #ef4444",
-                      color: "#ef4444",
-                    }}
+                    className="gr-btn gr-btn--danger gr-btn--block"
+                    style={{ marginTop: 8 }}
                     onClick={() => resetarSessao(alunoSelecionado.email)}
                   >
                     Forçar Deslogar Aluno
                   </button>
                 </div>
 
-                <div
-                  style={{
-                    padding: "15px",
-                    background: "rgba(0,0,0,0.2)",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <h5 style={{ marginTop: 0 }}>➕ Inserir Ponto Manual</h5>
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 1fr",
-                      gap: "10px",
-                      marginTop: "10px",
-                    }}
-                  >
+                {/* Ponto manual */}
+                <div className="gr-panel">
+                  <h5>➕ Inserir Ponto Manual</h5>
+                  <div className="gr-grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                     <input
                       type="date"
-                      className="input-modern"
+                      className="gr-input"
                       value={manualPonto.data}
-                      onChange={(e) =>
-                        setManualPonto({ ...manualPonto, data: e.target.value })
-                      }
+                      onChange={(e) => setManualPonto({ ...manualPonto, data: e.target.value })}
                     />
                     <input
                       type="time"
-                      className="input-modern"
+                      className="gr-input"
                       value={manualPonto.check_in}
-                      onChange={(e) =>
-                        setManualPonto({
-                          ...manualPonto,
-                          check_in: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setManualPonto({ ...manualPonto, check_in: e.target.value })}
                     />
                     <input
                       type="time"
-                      className="input-modern"
+                      className="gr-input"
                       value={manualPonto.check_out}
-                      onChange={(e) =>
-                        setManualPonto({
-                          ...manualPonto,
-                          check_out: e.target.value,
-                        })
-                      }
+                      onChange={(e) => setManualPonto({ ...manualPonto, check_out: e.target.value })}
                     />
                   </div>
-                  <button
-                    className="btn-ponto in"
-                    style={{ marginTop: "10px", width: "100%" }}
-                    onClick={registrarManual}
-                  >
+                  <button className="gr-btn gr-btn--green gr-btn--block" style={{ marginTop: 12 }} onClick={registrarManual}>
                     Registrar Presença Manual
                   </button>
 
-                  <div
-                    style={{
-                      borderTop: "1px solid rgba(255,255,255,.1)",
-                      margin: "16px 0 12px",
-                    }}
-                  ></div>
-                  <h5 style={{ margin: "0 0 8px", color: "#e8eefc" }}>
-                    &#9203; Adicionar check-out em registro existente
-                  </h5>
-                  <p
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--text-dim)",
-                      margin: "0 0 10px",
-                    }}
-                  >
-                    Use quando o aluno marcou a entrada mas{" "}
-                    <b>esqueceu de bater a saída</b>. Preenche automaticamente
-                    com o horário atual.
+                  <div className="gr-divider" />
+
+                  <h5>⏳ Adicionar check-out em registro existente</h5>
+                  <p className="gr-sub" style={{ margin: "0 0 12px" }}>
+                    Use quando o aluno marcou a entrada mas <b style={{ color: "var(--gr-title)" }}>esqueceu de bater a saída</b>.
+                    Preenche automaticamente com o horário atual.
                   </p>
-                  <button
-                    className="btn-ponto"
-                    style={{
-                      width: "100%",
-                      background: "#193A70",
-                      color: "#fff",
-                      border: "none",
-                      padding: "10px",
-                      borderRadius: "8px",
-                      cursor: "pointer",
-                      fontWeight: 700,
-                    }}
-                    onClick={adicionarCheckoutAgora}
-                  >
-                    &#9989; Adicionar Check-out Agora
+                  <button className="gr-btn gr-btn--primary gr-btn--block" onClick={adicionarCheckoutAgora}>
+                    ✅ Adicionar Check-out Agora
                   </button>
                 </div>
 
                 <button
-                  className="btn-danger-outline"
-                  style={{
-                    width: "100%",
-                    border: "1px solid #9d3131",
-                    color: "#9d3131",
-                  }}
+                  className="gr-btn gr-btn--danger gr-btn--block"
                   onClick={excluirAluno}
                   disabled={carregando}
                 >
@@ -1026,9 +1085,10 @@ export default function GestaoRapida({ user, setView }) {
                 </button>
               </div>
             )}
+
             <button
-              className="btn-secondary"
-              style={{ width: "100%", marginTop: "20px" }}
+              className="gr-btn gr-btn--ghost gr-btn--block"
+              style={{ marginTop: 18 }}
               onClick={() => setModalAberto(false)}
             >
               Fechar Janela
