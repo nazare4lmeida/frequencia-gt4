@@ -307,19 +307,29 @@ export default function ProfessorHome({ user }) {
               <p style={{ color: "var(--text-dim)", padding: "10px 0" }}>Nao foi possivel carregar.</p>
             ) : (
               <>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", margin: "16px 0" }}>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <label style={{ fontSize: 12, color: "var(--text-dim)", display: "block", marginBottom: 6 }}>Data da aula</label>
-                    <select value={dataSel} onChange={(e) => setDataSel(e.target.value)}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,.2)", background: "#0f2647", color: "#fff" }}>
-                      {datasDisp.length === 0 && <option value="">Sem datas com presenca</option>}
-                      {datasDisp.map((d) => <option key={d} value={d}>{dLabel(d)}</option>)}
-                    </select>
+                <div style={{ margin: "16px 0" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                    <label style={{ fontSize: 12, color: "var(--text-dim)" }}>Data da aula</label>
+                    <button onClick={exportarExcel}
+                      style={{ padding: "9px 15px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, background: "#0E7C57", color: "#fff" }}>
+                      &#128190; Exportar Excel
+                    </button>
                   </div>
-                  <button onClick={exportarExcel}
-                    style={{ padding: "11px 18px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, background: "#0E7C57", color: "#fff" }}>
-                    &#128190; Exportar Excel
-                  </button>
+                  {datasDisp.length === 0 ? (
+                    <p style={{ fontSize: 13, color: "var(--text-dim)" }}>Sem datas de aula para esta turma.</p>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+                      {datasDisp.map((d) => (
+                        <button key={d} type="button" onClick={() => setDataSel(d)}
+                          style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 100, cursor: "pointer", fontSize: 13, fontWeight: 700,
+                            border: "1px solid " + (dataSel === d ? "#2563EB" : "rgba(255,255,255,.2)"),
+                            background: dataSel === d ? "#2563EB" : "transparent",
+                            color: dataSel === d ? "#fff" : "var(--text-dim)", whiteSpace: "nowrap" }}>
+                          {dLabel(d)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>

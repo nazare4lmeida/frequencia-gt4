@@ -336,6 +336,7 @@ export default function GestaoRapida({ user, setView }) {
       : "0";
     return { total, emRisco, semNome, mediaPresencas };
   }, [alunos, filtroTurma]);
+  useEffect(() => { setAlPag(1); }, [busca, filtroTurma, ordenacao]);
 
   // ==== Check-out em massa + Justificativas (para monitores, sem wp-admin) ====
   const [coData, setCoData] = useState(new Date().toISOString().split("T")[0]);
@@ -343,6 +344,10 @@ export default function GestaoRapida({ user, setView }) {
   const [justs, setJusts] = useState([]);
   const [justStatus, setJustStatus] = useState("pendente");
   const [justResp, setJustResp] = useState({});
+  const [justPag, setJustPag] = useState(1);
+  const JUST_POR = 10;
+  const [alPag, setAlPag] = useState(1);
+  const AL_POR = 25;
 
   const carregarJusts = async (st = justStatus) => {
     try {
@@ -351,7 +356,7 @@ export default function GestaoRapida({ user, setView }) {
       if (res.ok) setJusts(d.justificativas || []);
     } catch {}
   };
-  useEffect(() => { carregarJusts(justStatus); /* eslint-disable-next-line */ }, [justStatus]);
+  useEffect(() => { carregarJusts(justStatus); setJustPag(1); /* eslint-disable-next-line */ }, [justStatus]);
 
   const responderJust = async (id, status) => {
     try {
@@ -385,7 +390,7 @@ export default function GestaoRapida({ user, setView }) {
   return (
     <div className="app-wrapper">
       {/* CHECK-OUT EM MASSA */}
-      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #0E7C57" }}>
+      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #0E7C57", background: "#fff", border: "1px solid #E7ECF4", borderLeftWidth: "4px", borderRadius: 12 }}>
         <div style={{ padding: "14px 18px" }}>
           <h3 style={{ margin: "0 0 4px", color: "#193A70" }}>&#9203; Check-out em massa</h3>
           <p style={{ fontSize: 12.5, color: "var(--text-muted, #667)", margin: "0 0 12px" }}>Completa a sa&iacute;da de quem bateu entrada mas esqueceu o check-out, no hor&aacute;rio de fim da aula.</p>
@@ -403,7 +408,7 @@ export default function GestaoRapida({ user, setView }) {
       </div>
 
       {/* JUSTIFICATIVAS */}
-      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #7C3AED" }}>
+      <div className="shadow-card" style={{ marginBottom: 16, borderLeft: "4px solid #7C3AED", background: "#fff", border: "1px solid #E7ECF4", borderLeftWidth: "4px", borderRadius: 12 }}>
         <div style={{ padding: "14px 18px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
             <h3 style={{ margin: 0, color: "#193A70" }}>&#128221; Justificativas de falta</h3>
@@ -421,7 +426,7 @@ export default function GestaoRapida({ user, setView }) {
             <p style={{ fontSize: 13, color: "#667", padding: "10px 0" }}>Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}.</p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {justs.map((j) => (
+              {justs.slice((justPag-1)*JUST_POR, justPag*JUST_POR).map((j) => (
                 <div key={j.id} style={{ border: "1px solid #E7ECF4", borderRadius: 10, padding: "12px 14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                     <div>
@@ -453,10 +458,19 @@ export default function GestaoRapida({ user, setView }) {
               ))}
             </div>
           )}
+          {justs.length > JUST_POR && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, marginTop: 12, fontSize: 13, color: "#586B88" }}>
+              <button onClick={() => setJustPag((p) => Math.max(1, p - 1))} disabled={justPag <= 1}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: justPag<=1?"default":"pointer", opacity: justPag<=1?.5:1 }}>&lsaquo; anterior</button>
+              <span>Página {justPag} de {Math.ceil(justs.length / JUST_POR)}</span>
+              <button onClick={() => setJustPag((p) => Math.min(Math.ceil(justs.length / JUST_POR), p + 1))} disabled={justPag >= Math.ceil(justs.length / JUST_POR)}
+                style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: "pointer", opacity: justPag>=Math.ceil(justs.length/JUST_POR)?.5:1 }}>próxima &rsaquo;</button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="shadow-card">
+      <div className="shadow-card" style={{ background: "#fff", border: "1px solid #E7ECF4", borderRadius: 12 }}>
         <div
           style={{
             display: "flex",
@@ -629,7 +643,7 @@ export default function GestaoRapida({ user, setView }) {
             </tr>
           </thead>
           <tbody>
-            {alunosFiltrados.map((aluno) => {
+            {alunosFiltrados.slice((alPag-1)*AL_POR, alPag*AL_POR).map((aluno) => {
               const numFaltas = aluno.total_faltas || 0;
               const status = statusSalva[aluno.email];
 
@@ -733,9 +747,16 @@ export default function GestaoRapida({ user, setView }) {
             )}
           </tbody>
         </table>
+        {alunosFiltrados.length > AL_POR && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 0 4px", fontSize: 13, color: "#586B88" }}>
+            <button onClick={() => setAlPag((p) => Math.max(1, p - 1))} disabled={alPag <= 1}
+              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: alPag<=1?"default":"pointer", opacity: alPag<=1?.5:1 }}>&lsaquo; anterior</button>
+            <span>Mostrando {Math.min((alPag-1)*AL_POR+1, alunosFiltrados.length)}–{Math.min(alPag*AL_POR, alunosFiltrados.length)} de {alunosFiltrados.length} · Página {alPag}/{Math.ceil(alunosFiltrados.length / AL_POR)}</span>
+            <button onClick={() => setAlPag((p) => Math.min(Math.ceil(alunosFiltrados.length / AL_POR), p + 1))} disabled={alPag >= Math.ceil(alunosFiltrados.length / AL_POR)}
+              style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid #DCE4F0", background: "#fff", color: "#193A70", cursor: "pointer", opacity: alPag>=Math.ceil(alunosFiltrados.length/AL_POR)?.5:1 }}>próxima &rsaquo;</button>
+          </div>
+        )}
       </div>
-
-      {/* MODAL DE GERENCIAMENTO INTEGRADO (paridade com o Admin) */}
       {modalAberto && alunoSelecionado && (
         <div className="modal-overlay">
           <div
