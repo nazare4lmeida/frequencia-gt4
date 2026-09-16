@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { fetchComToken } from "./Api";
 import * as XLSX from "xlsx";
 
@@ -10,9 +10,22 @@ export default function ProfessorHome({ user }) {
   const [mostrarAval, setMostrarAval] = useState(false);
   const [aval, setAval] = useState({ engajamento: 0, nivelamento: "", observacao: "" });
   const [tab, setTab] = useState("ponto");
-  const turmasProf = (user.turmas && user.turmas.length) ? user.turmas : (user.turma ? [user.turma] : []);
+  // As turmas do professor podem vir como "turmas", "turma" ou "formacao"
+  // (o restante do app usa "formacao"). Aceita todas as variantes.
+  const turmasProf = useMemo(() => {
+    const lista = [];
+    if (Array.isArray(user.turmas)) lista.push(...user.turmas);
+    else if (user.turmas) lista.push(user.turmas);
+    if (user.turma) lista.push(user.turma);
+    if (user.formacao) lista.push(user.formacao);
+    return [...new Set(lista.map((t) => (typeof t === "object" ? t?.id : t)).filter(Boolean))];
+  }, [user]);
   const [selTurma, setSelTurma] = useState(turmasProf[0] || "");
-  const qs = (extra) => "?turma=" + encodeURIComponent(selTurma || "") + (extra || "");
+
+  // Nao envia "turma=" vazio: isso fazia o backend ignorar o filtro
+  // e devolver a base inteira (1000 alunos) sem os registros da turma.
+  const qs = (extra) =>
+    (selTurma ? "?turma=" + encodeURIComponent(selTurma) : "?") + (extra || "");
 
   const [rel, setRel] = useState(null);
   const [carregandoRel, setCarregandoRel] = useState(false);
@@ -32,7 +45,37 @@ export default function ProfessorHome({ user }) {
   };
   useEffect(() => { if (tab === "historico" && !hist) carregarHist(); }, [tab]);
 
-  const hhmm = (ts) => (ts ? new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" }) : "--:--");
+  // O backend as vezes devolve "18:30" (texto) e as vezes um timestamp ISO.
+  const hhmm = (ts) => {
+    if (!ts) return "--:--";
+    if (typeof ts === "string" && /^\d{1,2}:\d{2}/.test(ts)) return ts.slice(0, 5);
+    const d = new Date(ts);
+    return isNaN(d.getTime())
+      ? "--:--"
+      : d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" });
+  };
+
+  // Normaliza qualquer formato de data para "AAAA-MM-DD".
+  const soData = (v) => {
+    if (!v) return "";
+    if (typeof v === "string") {
+      const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return m[0];
+      const br = v.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (br) return br[3] + "-" + br[2] + "-" + br[1];
+    }
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+  };
+
+  // Considera presente tanto quem bateu check-in quanto quem foi marcado pelo professor.
+  const temPresenca = (r) =>
+    !!r &&
+    (!!r.check_in ||
+      r.presente === true ||
+      r.presente === 1 ||
+      r.presente === "1" ||
+      String(r.status || "").toLowerCase() === "presente");
   const dLabel = (iso) => {
     if (!iso) return "";
     const [a, m, d] = iso.split("-");
@@ -44,8 +87,12 @@ export default function ProfessorHome({ user }) {
     try {
       const res = await fetchComToken("/professor/hoje" + qs(), "GET");
       const data = await res.json();
-      if (res.ok) setHoje(data);
-      else setMsg({ tipo: "erro", texto: data.error || "Erro ao carregar." });
+      if (res.ok) {
+        setHoje(data);
+        // Se o login nao trouxe a turma, usa a que o backend resolveu pelo token.
+        const idBackend = data?.turma?.id || data?.turma?.turma || data?.turma;
+        if (!selTurma && typeof idBackend === "string") setSelTurma(idBackend);
+      } else setMsg({ tipo: "erro", texto: data.error || "Erro ao carregar." });
     } catch { setMsg({ tipo: "erro", texto: "Falha de conexao." }); }
     finally { setCarregando(false); }
   };
@@ -59,13 +106,21 @@ export default function ProfessorHome({ user }) {
       const data = await res.json();
       if (res.ok) {
         setRel(data);
-        const datas = [...new Set([...(data.datas||[]), ...(data.registros || []).map((r) => String(r.data).slice(0, 10))])].sort().reverse();
+        const datas = [...new Set([
+          ...(data.datas || []).map(soData),
+          ...(data.registros || []).map((r) => soData(r.data)),
+        ].filter(Boolean))].sort().reverse();
         if (datas.length && !dataSel) setDataSel(datas[0]);
       }
     } catch { /* silencioso */ }
     setCarregandoRel(false);
   };
   useEffect(() => { if (tab === "turma" && !rel) carregarRel(); }, [tab]);
+  // Se a data escolhida sumir da lista (troca de turma), volta para a mais recente.
+  useEffect(() => {
+    if (rel && datasDisp.length && !datasDisp.includes(dataSel)) setDataSel(datasDisp[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rel]);
 
   const pegarLocal = () =>
     new Promise((resolve) => {
@@ -178,11 +233,18 @@ export default function ProfessorHome({ user }) {
   const temCheckin = !!reg?.check_in;
   const temCheckout = !!reg?.check_out;
 
-  const datasDisp = rel ? [...new Set([...(rel.datas||[]), ...(rel.registros || []).map((r) => String(r.data).slice(0, 10))])].sort().reverse() : [];
-  const regsDoDia = rel ? (rel.registros || []).filter((r) => String(r.data).slice(0, 10) === dataSel) : [];
+  const datasDisp = rel
+    ? [...new Set([
+        ...(rel.datas || []).map(soData),
+        ...(rel.registros || []).map((r) => soData(r.data)),
+      ].filter(Boolean))].sort().reverse()
+    : [];
+
+  const chaveAluno = (r) => String(r.aluno_email || r.email || "").toLowerCase();
+  const regsDoDia = rel ? (rel.registros || []).filter((r) => soData(r.data) === dataSel) : [];
   const statusDoDia = {};
-  regsDoDia.forEach((r) => { statusDoDia[r.aluno_email] = r; });
-  const presentesNoDia = regsDoDia.filter((r) => r.check_in).length;
+  regsDoDia.forEach((r) => { statusDoDia[chaveAluno(r)] = r; });
+  const presentesNoDia = regsDoDia.filter(temPresenca).length;
 
   const CARD = { background: "#214d7d", border: "1px solid rgba(255,255,255,.08)", borderRadius: 12, padding: "14px 16px" };
 
@@ -350,9 +412,11 @@ export default function ProfessorHome({ user }) {
                     <span style={{ width: 130, textAlign: "center" }}>Presenca</span>
                   </div>
                   {rel.alunos.map((a) => {
-                    const r = statusDoDia[a.email];
-                    const presente = !!r?.check_in;
-                    const justif = (rel.justificadas || []).some((j) => j.aluno_email === a.email && String(j.data).slice(0,10) === dataSel);
+                    const r = statusDoDia[String(a.email || "").toLowerCase()];
+                    const presente = temPresenca(r);
+                    const justif = (rel.justificadas || []).some(
+                      (j) => String(j.aluno_email || "").toLowerCase() === String(a.email || "").toLowerCase() && soData(j.data) === dataSel,
+                    );
                     return (
                       <div key={a.email} style={{ display: "flex", alignItems: "center", padding: "8px 12px", borderTop: "1px solid rgba(255,255,255,.06)", fontSize: 13, color: "#fff" }}>
                         <span style={{ flex: 1 }}>{a.nome}</span>
