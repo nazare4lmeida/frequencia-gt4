@@ -337,9 +337,6 @@ export default function GestaoRapida({ user, setView }) {
     return { total, emRisco, semNome, mediaPresencas };
   }, [alunos, filtroTurma]);
 
-  if (carregando && !modalAberto)
-    return <div className="app-wrapper">Carregando base de dados...</div>;
-
   // ==== Check-out em massa + Justificativas (para monitores, sem wp-admin) ====
   const [coData, setCoData] = useState(new Date().toISOString().split("T")[0]);
   const [coTurma, setCoTurma] = useState("todos");
@@ -381,6 +378,9 @@ export default function GestaoRapida({ user, setView }) {
       else alert(d.error || "Erro.");
     } catch { alert("Erro de conexao."); }
   };
+
+  if (carregando && !modalAberto)
+    return <div className="app-wrapper">Carregando base de dados...</div>;
 
   return (
     <div className="app-wrapper">
