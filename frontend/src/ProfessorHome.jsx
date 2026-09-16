@@ -114,6 +114,34 @@ export default function ProfessorHome({ user }) {
     setEnviando(false);
   };
 
+  const marcarPresente = async () => {
+    if (!(aval.engajamento >= 1 && aval.engajamento <= 5) || !aval.nivelamento) {
+      setMsg({ tipo: "erro", texto: "Preencha o engajamento e o nivelamento da turma antes de marcar presenca." });
+      return;
+    }
+    let loc = { latitude: null, longitude: null };
+    if (hoje?.turma?.exigeLocalizacao) {
+      loc = await pegarLocal();
+      if (loc.latitude == null) {
+        setMsg({ tipo: "erro", texto: "Ative a localizacao do celular e permita o acesso no navegador." });
+        return;
+      }
+    }
+    setEnviando(true); setMsg(null);
+    try {
+      const res = await fetchComToken("/professor/ponto", "POST", {
+        tipo: "presente", turma: selTurma,
+        engajamento: aval.engajamento, nivelamento: aval.nivelamento, observacao: aval.observacao, ...loc,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMsg({ tipo: "ok", texto: "Presenca registrada! Seu ponto ficou das " + data.check_in + " as " + data.check_out + " (horario da aula)." });
+        setMostrarAval(false); await carregar();
+      } else setMsg({ tipo: "erro", texto: data.error || "Erro ao marcar presenca." });
+    } catch { setMsg({ tipo: "erro", texto: "Falha de conexao." }); }
+    setEnviando(false);
+  };
+
   const togglePresenca = async (email, presenteAtual) => {
     setSalvandoCpf(email);
     try {
@@ -226,13 +254,12 @@ export default function ProfessorHome({ user }) {
                 </p>
               )}
 
-              {!temCheckin ? (
-                <button className="btn-ponto in" onClick={fazerCheckin} disabled={enviando} style={{ width: "100%" }}>
-                  {enviando ? "Registrando..." : "Fazer check-in da aula"}
-                </button>
-              ) : !mostrarAval ? (
-                <button className="btn-ponto out" onClick={() => setMostrarAval(true)} disabled={enviando} style={{ width: "100%" }}>
-                  Fazer check-out (avaliar a aula)
+              <div className="info-banner" style={{ marginBottom: 12, borderLeft: "5px solid #2563EB" }}>
+                &#9989; <b>Basta marcar presen&ccedil;a.</b> Seu ponto ser&aacute; registrado automaticamente no <b>hor&aacute;rio da aula</b> da sua turma{hoje?.turma?.janela ? " (" + hoje.turma.janela + ")" : ""} &mdash; entrada e sa&iacute;da.
+              </div>
+              {!mostrarAval ? (
+                <button className="btn-ponto in" onClick={() => setMostrarAval(true)} disabled={enviando} style={{ width: "100%" }}>
+                  &#9989; Marcar Presen&ccedil;a na aula
                 </button>
               ) : (
                 <div style={{ ...CARD, marginTop: 8 }}>
@@ -262,8 +289,8 @@ export default function ProfessorHome({ user }) {
                   <div style={{ display: "flex", gap: 10 }}>
                     <button className="btn-ponto" onClick={() => setMostrarAval(false)} disabled={enviando}
                       style={{ flex: 1, background: "transparent", color: "var(--text-dim)", border: "1px solid rgba(255,255,255,.25)" }}>Voltar</button>
-                    <button className="btn-ponto out" onClick={fazerCheckout} disabled={enviando} style={{ flex: 2 }}>
-                      {enviando ? "Enviando..." : "Confirmar check-out"}
+                    <button className="btn-ponto out" onClick={marcarPresente} disabled={enviando} style={{ flex: 2 }}>
+                      {enviando ? "Registrando..." : "Confirmar presença"}
                     </button>
                   </div>
                 </div>

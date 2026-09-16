@@ -1607,7 +1607,7 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
     if (!selp.ok) return res.status(403).json({ error: "Turma nao pertence a voce." });
     const turmaId = selp.turma;
     const { tipo, latitude, longitude, engajamento, nivelamento, observacao } = req.body;
-    if (!["checkin", "checkout"].includes(tipo)) {
+    if (!["checkin", "checkout", "presente"].includes(tipo)) {
       return res.status(400).json({ error: "Tipo invalido." });
     }
     const { data: hoje, hora: agora } = getBrasiliaTime();
@@ -1621,7 +1621,7 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
       (turma?.local?.exige === true);
 
     let lat = null, lng = null;
-    if (tipo === "checkin" && exigeLoc) {
+    if ((tipo === "checkin" || tipo === "presente") && exigeLoc) {
       lat = parseFloat(latitude); lng = parseFloat(longitude);
       const val = validarLocalCheckin(lat, lng, turma);
       if (!val.ok) {
@@ -1637,6 +1637,31 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
       .eq("professor_email", email).eq("data", hoje);
     if (turmaId) rq = rq.eq("turma", turmaId);
     const { data: reg } = await rq.maybeSingle();
+
+    // MODO "PRESENTE": um clique registra entrada E saida no horario exato da aula da turma.
+    if (tipo === "presente") {
+      if (reg && reg.check_in) return res.status(400).json({ error: "Voce ja registrou presenca nesta turma hoje." });
+      const jan = (turma && turma.janelas && turma.janelas.aula) ? turma.janelas.aula : { inicio: 18, fim: 22 };
+      const decParaHHMM = (dec) => {
+        const h = Math.floor(dec); const m = Math.round((dec - h) * 60);
+        return `${String(h).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+      };
+      const ci = `${hoje}T${decParaHHMM(jan.inicio)}:00-03:00`;
+      const co = `${hoje}T${decParaHHMM(jan.fim)}:00-03:00`;
+      const eng = parseInt(engajamento, 10);
+      const linha = {
+        professor_email: email, turma: turmaId, data: hoje,
+        check_in: ci, check_out: co,
+        checkin_latitude: lat, checkin_longitude: lng,
+        origem: "presente_auto",
+        engajamento: (eng >= 1 && eng <= 5) ? eng : null,
+        nivelamento: nivelamento ? String(nivelamento) : null,
+        observacao: observacao ? String(observacao).slice(0, 1000) : null,
+      };
+      if (reg) await supabase.from("presencas_professor").update(linha).eq("id", reg.id);
+      else await supabase.from("presencas_professor").insert([linha]);
+      return res.json({ ok: true, tipo: "presente", check_in: decParaHHMM(jan.inicio), check_out: decParaHHMM(jan.fim) });
+    }
 
     if (tipo === "checkin") {
       if (reg && reg.check_in) return res.status(400).json({ error: "Voce ja fez check-in nesta turma hoje." });
