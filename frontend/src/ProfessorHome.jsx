@@ -171,7 +171,7 @@ export default function ProfessorHome({ user }) {
         tipo: "checkout", turma: selTurma, engajamento: aval.engajamento, nivelamento: aval.nivelamento, observacao: aval.observacao,
       });
       const data = await res.json();
-      if (res.ok) { setMsg({ tipo: "ok", texto: "Check-out e avaliacao registrados as " + data.hora + "." }); setMostrarAval(false); await carregar(); }
+      if (res.ok) { setMsg({ tipo: "ok", texto: "Check-out e avaliação registrados as " + data.hora + "." }); setMostrarAval(false); await carregar(); }
       else setMsg({ tipo: "erro", texto: data.error || "Erro no check-out." });
     } catch { setMsg({ tipo: "erro", texto: "Falha de conexao." }); }
     setEnviando(false);
@@ -308,7 +308,7 @@ export default function ProfessorHome({ user }) {
             <p style={{ color: "var(--text-dim)", padding: "10px 0" }}>Carregando...</p>
           ) : temCheckout ? (
             <div className="info-banner" style={{ margin: "14px 0", borderLeft: "5px solid #16A34A" }}>
-              <b>Presença do dia concluida.</b>
+              <b>Presença do dia concluída.</b>
               {reg?.check_in && (
   <div style={{ background: "rgba(37,99,235,.06)", border: "1px solid rgba(37,99,235,.25)", borderRadius: 12, padding: 16, marginTop: 14 }}>
     <h5 style={{ margin: "0 0 4px", color: "#e8eefc" }}>Avaliação da aula <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-dim)" }}>(opcional — ao terminar a aula)</span></h5>
@@ -327,7 +327,7 @@ export default function ProfessorHome({ user }) {
       style={{ padding: "9px 18px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, background: "#2563EB", color: "#fff" }}>Enviar avaliação</button>
   </div>
 )}
-              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)} &middot; Check-out {hhmm(reg.check_out)}. Avaliacao enviada. Bom trabalho!</p>
+              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)} &middot; Check-out {hhmm(reg.check_out)}. Avaliação enviada. Bom trabalho!</p>
             </div>
           ) : (
             <>
@@ -357,7 +357,7 @@ export default function ProfessorHome({ user }) {
                 </button>
               ) : (
                 <div style={{ ...CARD, marginTop: 8 }}>
-                  <h3 style={{ margin: "0 0 12px", fontSize: 16, color: "#fff" }}>Avaliacao da aula</h3>
+                  <h3 style={{ margin: "0 0 12px", fontSize: 16, color: "#fff" }}>Avaliação da aula</h3>
                   <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 6, color: "var(--text-dim)" }}>Engajamento da turma</label>
                   <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
                     {[1, 2, 3, 4, 5].map((n) => (

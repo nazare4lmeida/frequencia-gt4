@@ -1780,7 +1780,7 @@ app.post("/api/professor/ponto", verificarToken, async (req, res) => {
     if (reg.check_out) return res.status(400).json({ error: "Voce ja fez check-out hoje." });
     const eng = parseInt(engajamento, 10);
     if (!(eng >= 1 && eng <= 5) || !nivelamento) {
-      return res.status(400).json({ error: "Preencha a avaliacao da aula (engajamento e nivelamento)." });
+      return res.status(400).json({ error: "Preencha a avaliação da aula (engajamento e nivelamento)." });
     }
     await supabase.from("presencas_professor").update({
       check_out: ts, engajamento: eng, nivelamento: String(nivelamento),
