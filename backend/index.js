@@ -53,6 +53,53 @@ if (!supabaseUrl || !supabaseKey || !JWT_SECRET) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Busca TODOS os alunos de uma turma (o Supabase corta em 1000 por requisicao;
+// aqui pagina em lotes ate trazer todos).
+async function presencasDeEmails(emails, campos) {
+  let todas = [];
+  const CHUNK = 150;
+  for (let i = 0; i < emails.length; i += CHUNK) {
+    const grupo = emails.slice(i, i + CHUNK);
+    let acc = []; 
+    for (let p = 0; p < 30; p++) {
+      const de = p * 1000, ate = de + 999;
+      const { data, error } = await supabase
+        .from("presencas").select(campos).in("aluno_email", grupo).range(de, ate);
+      if (error) break;
+      if (!data || data.length === 0) break;
+      acc = acc.concat(data);
+      if (data.length < 1000) break;
+    }
+    todas = todas.concat(acc);
+  }
+  return todas;
+}
+async function justificadasDeEmails(emails) {
+  let todas = [];
+  const CHUNK = 150;
+  for (let i = 0; i < emails.length; i += CHUNK) {
+    const grupo = emails.slice(i, i + CHUNK);
+    const { data } = await supabase
+      .from("justificativas").select("aluno_email, data").eq("status", "aceita").in("aluno_email", grupo);
+    if (data) todas = todas.concat(data);
+  }
+  return todas;
+}
+async function todosAlunosDaTurma(turmaId) {
+  let todos = [];
+  const LOTE = 1000;
+  for (let p = 0; p < 20; p++) {
+    const de = p * LOTE, ate = de + LOTE - 1;
+    const { data: parte, error } = await supabase
+      .from("alunos").select("email, nome").eq("formacao", turmaId).range(de, ate);
+    if (error) break;
+    if (!parte || parte.length === 0) break;
+    todos = todos.concat(parte);
+    if (parte.length < LOTE) break;
+  }
+  return todos;
+}
+
 // ==========================================
 // MIDDLEWARES DE SEGURANÇA
 // ==========================================
@@ -613,14 +660,25 @@ app.get(
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
 
     try {
-      let query = supabase.from("alunos").select("*").range(0, 9999);
-
-      if (turma && turma !== "todos") query = query.eq("formacao", turma);
-      if (termo)
-        query = query.or(`nome.ilike.%${termo}%,email.ilike.%${termo}%`);
-      if (status === "incompleto") query = query.or("nome.is.null");
-
-      const { data: alunos, error } = await query;
+      // Busca paginada (o Supabase corta em 1000 por requisicao). Traz TODOS em lotes.
+      const montarQuery = (from, to) => {
+        let q = supabase.from("alunos").select("*").range(from, to);
+        if (turma && turma !== "todos") q = q.eq("formacao", turma);
+        if (termo) q = q.or(`nome.ilike.%${termo}%,email.ilike.%${termo}%`);
+        if (status === "incompleto") q = q.or("nome.is.null");
+        return q;
+      };
+      let alunos = [];
+      const LOTE = 1000;
+      for (let pagina = 0; pagina < 20; pagina++) {
+        const de = pagina * LOTE, ate = de + LOTE - 1;
+        const { data: parte, error: errParte } = await montarQuery(de, ate);
+        if (errParte) throw errParte;
+        if (!parte || parte.length === 0) break;
+        alunos = alunos.concat(parte);
+        if (parte.length < LOTE) break;
+      }
+      const error = null;
       if (error) throw error;
 
       let resultadoFinal = alunos || [];
@@ -1537,17 +1595,17 @@ app.get("/api/chamada/lista", async (req, res) => {
     if (!turma) return res.status(403).json({ error: "Turma ou PIN incorretos." });
 
     const { data: hoje } = getBrasiliaTime();
-    const { data: alunos } = await supabase
-      .from("alunos").select("email, nome").eq("formacao", turmaId);
+    const alunos = await todosAlunosDaTurma(turmaId);
     const emails = (alunos || []).map((a) => a.email);
     let presentes = [];
     if (emails.length) {
-      const { data: pres } = await supabase
-        .from("presencas")
-        .select("aluno_email, check_in")
-        .eq("data", hoje)
-        .in("aluno_email", emails);
-      presentes = pres || [];
+      const CHUNK = 150;
+      for (let i = 0; i < emails.length; i += CHUNK) {
+        const grupo = emails.slice(i, i + CHUNK);
+        const { data: pres } = await supabase
+          .from("presencas").select("aluno_email, check_in").eq("data", hoje).in("aluno_email", grupo);
+        if (pres) presentes = presentes.concat(pres);
+      }
     }
     const nomePorEmail = {};
     (alunos || []).forEach((a) => { nomePorEmail[a.email] = a.nome; });
@@ -1716,15 +1774,12 @@ app.get("/api/professor/turma", verificarToken, async (req, res) => {
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
     const turma = cronogramaDb.getTurma(cronograma, turmaId);
 
-    const { data: alunos } = await supabase
-      .from("alunos").select("email, nome").eq("formacao", turmaId);
+    const alunos = await todosAlunosDaTurma(turmaId);
     const emails = (alunos || []).map((a) => a.email);
 
     let presencas = [];
     if (emails.length) {
-      const { data: pres } = await supabase
-        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails).range(0, 50000);
-      presencas = pres || [];
+      presencas = await presencasDeEmails(emails, "aluno_email, data, check_in, check_out");
     }
 
     // agrega por aluno: dias distintos com check-in + se presente hoje
@@ -1767,18 +1822,13 @@ app.get("/api/professor/relatorio", verificarToken, async (req, res) => {
     if (!turmaId) return res.json({ turma: null, alunos: [], registros: [] });
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
     const turma = cronogramaDb.getTurma(cronograma, turmaId);
-    const { data: alunos } = await supabase
-      .from("alunos").select("email, nome").eq("formacao", turmaId);
+    const alunos = await todosAlunosDaTurma(turmaId);
     const emails = (alunos || []).map((a) => a.email);
     let registros = [];
     let justificadas = [];
     if (emails.length) {
-      const { data: pres } = await supabase
-        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails).range(0, 50000);
-      registros = pres || [];
-      const { data: just } = await supabase
-        .from("justificativas").select("aluno_email, data").eq("status", "aceita").in("aluno_email", emails);
-      justificadas = just || [];
+      registros = await presencasDeEmails(emails, "aluno_email, data, check_in, check_out");
+      justificadas = await justificadasDeEmails(emails);
     }
     res.json({
       turma: turma ? { id: turma.id, nome: turma.nome, sede: turma.sede } : { id: turmaId, nome: turmaId },
@@ -1916,18 +1966,18 @@ app.post("/api/admin/presencas-turma/excluir", verificarToken, verificarAdmin, a
     const emails = (alunos || []).map((a) => a.email);
     if (!emails.length) return res.json({ ok: true, excluidas: 0, alunos: 0 });
 
-    // conta antes (para informar quantas serao excluidas)
-    let cq = supabase.from("presencas").select("id", { count: "exact", head: true }).in("aluno_email", emails);
-    if (data) cq = cq.eq("data", data);
-    const { count } = await cq;
-
-    // exclui
-    let dq = supabase.from("presencas").delete().in("aluno_email", emails);
-    if (data) dq = dq.eq("data", data);
-    const { error: e2 } = await dq;
-    if (e2) throw e2;
-
-    res.json({ ok: true, excluidas: count || 0, alunos: emails.length });
+    // exclui em lotes de emails (turma grande estoura a URL de uma vez so)
+    let total = 0;
+    const CHUNK = 150;
+    for (let i = 0; i < emails.length; i += CHUNK) {
+      const grupo = emails.slice(i, i + CHUNK);
+      let dq = supabase.from("presencas").delete({ count: "exact" }).in("aluno_email", grupo);
+      if (data) dq = dq.eq("data", data);
+      const { count, error: e2 } = await dq;
+      if (e2) throw e2;
+      total += count || 0;
+    }
+    res.json({ ok: true, excluidas: total, alunos: emails.length });
   } catch (err) {
     console.error("ERRO excluir presencas-turma:", err);
     res.status(500).json({ error: "Erro ao excluir as presencas da turma." });
@@ -1947,17 +1997,22 @@ app.post("/api/admin/checkout-massa", verificarToken, verificarAdmin, async (req
     const co = `${data}T${String(h).padStart(2,"0")}:${String(m%60).padStart(2,"0")}:00-03:00`;
 
     // alunos da turma (se informada) para filtrar
-    let emails = null;
     if (turma) {
-      const { data: al } = await supabase.from("alunos").select("email").eq("formacao", turma);
-      emails = (al || []).map((a) => a.email);
-      if (!emails.length) return res.json({ ok: true, atualizados: 0 });
+      const als = await todosAlunosDaTurma(turma);
+      const emails = als.map((a) => a.email);
+      if (!emails.length) return res.json({ ok: true });
+      const CHUNK = 150;
+      for (let i = 0; i < emails.length; i += CHUNK) {
+        const grupo = emails.slice(i, i + CHUNK);
+        const { error } = await supabase.from("presencas").update({ check_out: co })
+          .eq("data", data).not("check_in", "is", null).is("check_out", null).in("aluno_email", grupo);
+        if (error) throw error;
+      }
+    } else {
+      const { error } = await supabase.from("presencas").update({ check_out: co })
+        .eq("data", data).not("check_in", "is", null).is("check_out", null);
+      if (error) throw error;
     }
-    let q = supabase.from("presencas").update({ check_out: co })
-      .eq("data", data).not("check_in", "is", null).is("check_out", null);
-    if (emails) q = q.in("aluno_email", emails);
-    const { error } = await q;
-    if (error) throw error;
     res.json({ ok: true });
   } catch (err) {
     console.error("ERRO checkout-massa:", err);
