@@ -2094,6 +2094,135 @@ app.get("/api/admin/justificativa/:id/documento", verificarToken, verificarAdmin
   }
 });
 
+// =========================================================
+//  FOLHA DE PONTO DOS PROFESSORES (admin)
+// =========================================================
+
+// "HH:MM" + data -> timestamp no fuso de Brasilia (mesmo formato do ponto do professor)
+const tsProfessor = (dataISO, hora) => {
+  const h = String(hora || "").trim();
+  if (!h) return null;
+  return `${dataISO}T${h.slice(0, 5)}:00-03:00`;
+};
+
+app.get("/api/admin/professores", verificarToken, verificarAdmin, async (_req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("professores")
+      .select("nome, email, tipo, turma, turmas, ativo")
+      .order("nome", { ascending: true });
+    if (error) throw error;
+    res.json({ ok: true, professores: data || [] });
+  } catch (err) {
+    console.error("ERRO admin/professores:", err);
+    res.status(500).json({ error: "Erro ao carregar os professores." });
+  }
+});
+
+// folha de ponto: registros de presencas_professor no periodo, ja com o nome do professor
+app.get("/api/admin/professores/pontos", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { data: hoje } = getBrasiliaTime();
+    const inicio = String(req.query.inicio || hoje).slice(0, 10);
+    const fim = String(req.query.fim || inicio).slice(0, 10);
+    let q = supabase
+      .from("presencas_professor")
+      .select("*")
+      .gte("data", inicio)
+      .lte("data", fim)
+      .order("data", { ascending: false });
+    if (req.query.turma && req.query.turma !== "todos") q = q.eq("turma", req.query.turma);
+    if (req.query.email) q = q.eq("professor_email", String(req.query.email).toLowerCase());
+    const { data: pontos, error } = await q;
+    if (error) throw error;
+
+    const { data: profs } = await supabase.from("professores").select("nome, email, tipo, turma, turmas");
+    const porEmail = {};
+    (profs || []).forEach((p) => { porEmail[String(p.email).toLowerCase()] = p; });
+
+    res.json({
+      ok: true,
+      inicio,
+      fim,
+      pontos: (pontos || []).map((p) => ({
+        ...p,
+        professor_nome: porEmail[String(p.professor_email).toLowerCase()]?.nome || p.professor_email,
+        professor_tipo: porEmail[String(p.professor_email).toLowerCase()]?.tipo || "professor",
+      })),
+      professores: profs || [],
+    });
+  } catch (err) {
+    console.error("ERRO admin/professores/pontos:", err);
+    res.status(500).json({ error: "Erro ao carregar a folha de ponto." });
+  }
+});
+
+// lancamento manual de um dia de trabalho do professor
+app.post("/api/admin/professor/ponto", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { professor_email, turma, data, check_in, check_out, observacao } = req.body;
+    if (!professor_email || !data) {
+      return res.status(400).json({ error: "Informe o professor e a data." });
+    }
+    const email = String(professor_email).toLowerCase();
+    const dia = String(data).slice(0, 10);
+    const linha = {
+      professor_email: email,
+      turma: turma || null,
+      data: dia,
+      check_in: tsProfessor(dia, check_in),
+      check_out: tsProfessor(dia, check_out),
+      observacao: observacao ? String(observacao).slice(0, 1000) : null,
+      origem: "manual_admin",
+      corrigido: true,
+    };
+    let q = supabase.from("presencas_professor").select("id").eq("professor_email", email).eq("data", dia);
+    if (turma) q = q.eq("turma", turma);
+    const { data: existe } = await q.maybeSingle();
+    if (existe) await supabase.from("presencas_professor").update(linha).eq("id", existe.id);
+    else await supabase.from("presencas_professor").insert([linha]);
+    res.json({ ok: true, atualizado: !!existe });
+  } catch (err) {
+    console.error("ERRO admin/professor/ponto:", err);
+    res.status(500).json({ error: "Erro ao lancar o ponto do professor." });
+  }
+});
+
+// correcao de um registro existente
+app.patch("/api/admin/professor/ponto/:id", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { data: atual } = await supabase
+      .from("presencas_professor").select("data").eq("id", req.params.id).maybeSingle();
+    if (!atual) return res.status(404).json({ error: "Registro nao encontrado." });
+    const dia = String(req.body.data || atual.data).slice(0, 10);
+    const eng = parseInt(req.body.engajamento, 10);
+    const patch = { data: dia, corrigido: true };
+    if ("check_in" in req.body) patch.check_in = tsProfessor(dia, req.body.check_in);
+    if ("check_out" in req.body) patch.check_out = tsProfessor(dia, req.body.check_out);
+    if ("turma" in req.body) patch.turma = req.body.turma || null;
+    if ("observacao" in req.body) patch.observacao = req.body.observacao ? String(req.body.observacao).slice(0, 1000) : null;
+    if ("nivelamento" in req.body) patch.nivelamento = req.body.nivelamento || null;
+    if ("engajamento" in req.body) patch.engajamento = eng >= 1 && eng <= 5 ? eng : null;
+    const { error } = await supabase.from("presencas_professor").update(patch).eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERRO admin/professor/ponto patch:", err);
+    res.status(500).json({ error: "Erro ao corrigir o ponto." });
+  }
+});
+
+app.delete("/api/admin/professor/ponto/:id", verificarToken, verificarAdmin, async (req, res) => {
+  try {
+    const { error } = await supabase.from("presencas_professor").delete().eq("id", req.params.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("ERRO admin/professor/ponto delete:", err);
+    res.status(500).json({ error: "Erro ao excluir o ponto." });
+  }
+});
+
 app.get("/api/health", (_, res) =>
   res.json({ status: "online", modoTeste: MODO_TESTE }),
 );

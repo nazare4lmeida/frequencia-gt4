@@ -81,11 +81,35 @@ da aula da turma. Por isso:
 
 - Não existe mais "aluno aguardando check-out" — quem marcou presença já está
   com o registro fechado.
-- O filtro **Registros antigos sem saída** e as ações de **completar
-  registro** (individual e em massa, na Gestão Rápida) servem apenas para
-  limpar dados anteriores a essa mudança.
+- O filtro **Registros antigos sem saída**, no painel de busca, serve apenas
+  para conferir dados anteriores a essa mudança.
 - O **ponto manual** do painel lança entrada e saída de uma vez, já com o
   horário da aula da turma.
+
+### Home do admin
+
+A home abre com o retrato do dia: presenças de hoje sobre os alunos das
+turmas que têm aula hoje, taxa de presença, quantas dessas turmas já têm
+ponto do professor e quantas justificativas aguardam resposta. A barra de
+presença por turma leva direto ao painel de busca já filtrado, e os dados de
+presença são recarregados a cada minuto.
+
+### Aba Professores (folha de ponto)
+
+Acompanhamento dos registros dos professores, por período, turma e professor:
+
+| Ação                                     | Onde na tela             |
+| ---------------------------------------- | ------------------------ |
+| Ver dias, horários e tempo em aula       | Registros                |
+| Somar dias e horas por professor         | Resumo do período        |
+| Corrigir data, turma, horários e avaliação | Registros → Editar     |
+| Excluir um registro errado               | Registros → Excluir      |
+| Lançar um dia que o professor não marcou | Lançar ponto manualmente |
+| Baixar a folha em planilha               | Exportar Excel           |
+
+O professor continua marcando presença em um clique: o ponto entra com o
+horário da aula da turma. Registro corrigido pela coordenação aparece
+marcado como *corrigido*.
 
 ---
 

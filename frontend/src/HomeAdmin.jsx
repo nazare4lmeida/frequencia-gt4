@@ -1,10 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
-  API_URL,
   FORMACOES,
-  PERIODO_LETIVO,
   formatarDataBR,
-  getFormacao,
+  formatarHoraDecimal,
   getNomeCurto,
   getProximasAulas,
   hojeBrasilia,
@@ -33,7 +31,10 @@ const IconeSvg = ({ path }) => (
 
 const ICONES = {
   buscar: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35",
-  saida: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  justificativa:
+    "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 15h6",
+  professor:
+    "M22 10 12 5 2 10l10 5 10-5ZM6 12v5c0 1.66 2.69 3 6 3s6-1.34 6-3v-5",
   auditoria:
     "M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v0Zm0 9 2 2 4-4",
   exportar: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",
@@ -59,111 +60,103 @@ const IconeBadge = ({ path, cor }) => (
   </div>
 );
 
-export default function HomeAdmin({ user, setView }) {
-  const [stats, setStats] = useState({
-    totalAlunos: 0,
-    sessoesAtivas: 0,
-    concluidosHoje: 0,
-    pendentesSaida: 0,
-  });
+const Cartao = ({ rotulo, valor, detalhe, cor }) => (
+  <div
+    style={{
+      background: "rgba(255,255,255,0.05)",
+      padding: "20px",
+      borderRadius: "12px",
+      textAlign: "center",
+      border: "1px solid var(--border-subtle)",
+    }}
+  >
+    <h4 style={{ marginTop: 0, fontSize: "0.75rem", color: "var(--text-dim)" }}>
+      {rotulo}
+    </h4>
+    <h2 style={{ fontSize: "2.4rem", margin: 0, color: cor }}>{valor}</h2>
+    <p style={{ fontSize: "0.78rem", opacity: 0.7, margin: "4px 0 0" }}>
+      {detalhe}
+    </p>
+  </div>
+);
 
+const hhmm = (ts) => {
+  if (!ts) return "";
+  const m = String(ts).match(/T(\d{2}:\d{2})/);
+  if (m) return m[1];
+  const d = new Date(ts);
+  return isNaN(d.getTime())
+    ? ""
+    : d.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "America/Fortaleza",
+      });
+};
+
+export default function HomeAdmin({ user, setView }) {
+  const [stats, setStats] = useState({ totalAlunos: 0, sessoesAtivas: 0 });
   const [presentesHoje, setPresentesHoje] = useState([]);
+  const [baseAlunos, setBaseAlunos] = useState([]);
+  const [turmas, setTurmas] = useState([]);
+  const [pontosProf, setPontosProf] = useState([]);
+  const [justPendentes, setJustPendentes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
 
-  // Curso (fullstack/ia/fullcycle) a partir da turma real, com fallback
-  // pela lista estática e, na falta dela, por palavras-chave no nome.
-  const inferirCurso = (nome = "") => {
-    const n = nome.toLowerCase();
-    if (n.includes("ia generativa") || n.includes("inteligência artificial"))
-      return "ia";
-    if (n.includes("fullcycle") || n.includes("full cycle")) return "fullcycle";
-    if (n.includes("full stack") || n.includes("fullstack")) return "fullstack";
-    return null;
-  };
-  const cursoDoAluno = (aluno) =>
-    getFormacao(aluno.formacao)?.curso || inferirCurso(aluno.turma_nome);
+  const hoje = hojeBrasilia();
+  const diaSemana = new Date(`${hoje}T12:00:00`).getDay();
 
-  // Carrega a lista real de turmas (sincronizada do Geração Tech)
+  // Base de alunos e turmas mudam pouco: carregam uma vez, fora do ciclo de
+  // atualização de 60s que acompanha as presenças do dia.
   useEffect(() => {
-    const carregarTurmas = async () => {
+    const carregarBase = async () => {
       try {
-        const res = await fetchComToken("/admin/turmas");
-        if (res.ok) {
-          const data = await res.json();
-          setTurmasDisponiveis(data.turmas || []);
-        }
+        const [resTurmas, resAlunos] = await Promise.all([
+          fetchComToken("/admin/turmas"),
+          fetchComToken("/admin/busca?termo=&turma=todos&status=todos"),
+        ]);
+        if (resTurmas?.ok) setTurmas((await resTurmas.json()).turmas || []);
+        if (resAlunos?.ok) setBaseAlunos((await resAlunos.json()).alunos || []);
       } catch (err) {
-        console.error("Erro ao carregar turmas:", err);
+        console.error("Erro ao carregar turmas/alunos:", err);
       }
     };
-    carregarTurmas();
+    carregarBase();
   }, []);
-
-  // Próxima aula considerando todas as turmas ativas do Geração Tech 4.0
-  const proximaISO = FORMACOES.map((f) => getProximasAulas(f.id, 1)[0])
-    .filter(Boolean)
-    .sort()[0];
-
-  const proximaData = proximaISO
-    ? formatarDataBR(proximaISO)
-    : "Sem aulas futuras";
-
-  const turmasDaProximaAula = proximaISO
-    ? FORMACOES.filter((f) => getProximasAulas(f.id, 1)[0] === proximaISO)
-    : [];
-
-  const pautaHoje =
-    proximaISO === PERIODO_LETIVO.aulaInaugural
-      ? "Aula inaugural: boas-vindas, metodologia e tour pela plataforma."
-      : turmasDaProximaAula.length
-        ? `Turmas em aula: ${turmasDaProximaAula.map((f) => getNomeCurto(f.id)).join(", ")}.`
-        : "Conteúdo conforme o cronograma oficial da formação.";
 
   const carregarDashboard = useCallback(async () => {
     if (!user?.token) return;
-
     try {
       setLoading(true);
-      const hoje = hojeBrasilia();
+      const [resStats, resLista, resPontos, resJusts] = await Promise.all([
+        fetchComToken(`/admin/stats/todos?dataFiltro=${hoje}`),
+        fetchComToken(
+          `/admin/busca?termo=&turma=todos&status=presentes_no_dia&dataFiltro=${hoje}`,
+        ),
+        fetchComToken(`/admin/professores/pontos?inicio=${hoje}&fim=${hoje}`),
+        fetchComToken("/admin/justificativas?status=pendente"),
+      ]);
 
-      const resStats = await fetch(
-        `${API_URL}/admin/stats/todos?dataFiltro=${hoje}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${user.token}` },
-        },
-      );
-
-      const resLista = await fetch(
-        `${API_URL}/admin/busca?termo=&turma=todos&status=presentes_no_dia&dataFiltro=${hoje}`,
-        {
-          method: "GET",
-          headers: { Authorization: `Bearer ${user.token}` },
-        },
-      );
-
-      if (resStats.ok && resLista.ok) {
-        const dataStats = await resStats.json();
-        const dataLista = await resLista.json();
-
+      if (resStats?.ok) {
+        const d = await resStats.json();
         setStats({
-          totalAlunos: dataStats.totalAlunos || 0,
-          sessoesAtivas: dataStats.sessoesAtivas || 0,
-          concluidosHoje: dataStats.concluidosHoje || 0,
-          pendentesSaida: dataStats.pendentesSaida || 0,
+          totalAlunos: d.totalAlunos || 0,
+          sessoesAtivas: d.sessoesAtivas || 0,
         });
-
-        setPresentesHoje(dataLista.alunos || []);
       }
+      if (resLista?.ok) setPresentesHoje((await resLista.json()).alunos || []);
+      if (resPontos?.ok) setPontosProf((await resPontos.json()).pontos || []);
+      if (resJusts?.ok)
+        setJustPendentes((await resJusts.json()).justificativas || []);
+
       setUltimaAtualizacao(new Date());
     } catch (err) {
       console.error("Erro ao carregar dashboard admin:", err);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, hoje]);
 
   useEffect(() => {
     carregarDashboard();
@@ -171,28 +164,74 @@ export default function HomeAdmin({ user, setView }) {
     return () => clearInterval(interval);
   }, [carregarDashboard]);
 
-  // Contagem por formação (Full Stack / IA Generativa / FullCycle)
-  const contagemPorCurso = useMemo(
+  // Turmas que têm aula hoje, pelo dia da semana cadastrado no cronograma.
+  const turmasHoje = useMemo(
     () =>
-      [
-        { curso: "fullstack", rotulo: "Full Stack", cor: "#22d3ee" },
-        { curso: "ia", rotulo: "IA Generativa", cor: "#f59e0b" },
-        { curso: "fullcycle", rotulo: "FullCycle", cor: "#6366f1" },
-      ].map((item) => ({
-        ...item,
-        total: presentesHoje.filter((a) => cursoDoAluno(a) === item.curso)
-          .length,
-      })),
-    [presentesHoje],
+      turmas.filter(
+        (t) => t.ativa !== false && (t.dias || []).includes(diaSemana),
+      ),
+    [turmas, diaSemana],
   );
 
-  const maiorContagemCurso = Math.max(
-    1,
-    ...contagemPorCurso.map((c) => c.total),
+  const nomeTurma = useCallback(
+    (id) => turmas.find((t) => t.id === id)?.nome || getNomeCurto(id) || id,
+    [turmas],
   );
 
-  // Leva para o Admin já com um filtro pré-aplicado (lido lá via localStorage)
-  // e rola a tela até a seção correspondente.
+  // Presença de hoje turma a turma: quem era esperado x quem marcou.
+  const presencaPorTurma = useMemo(
+    () =>
+      turmasHoje
+        .map((t) => {
+          const total = baseAlunos.filter((a) => a.formacao === t.id).length;
+          const presentes = presentesHoje.filter(
+            (a) => a.formacao === t.id,
+          ).length;
+          return {
+            id: t.id,
+            nome: t.nome,
+            horario: t.janelas?.label || "",
+            total,
+            presentes,
+            pct: total ? Math.round((presentes / total) * 100) : 0,
+          };
+        })
+        .sort((a, b) => a.pct - b.pct),
+    [turmasHoje, baseAlunos, presentesHoje],
+  );
+
+  const esperadosHoje = presencaPorTurma.reduce((s, t) => s + t.total, 0);
+  const presentesEsperados = presencaPorTurma.reduce(
+    (s, t) => s + t.presentes,
+    0,
+  );
+  const taxaHoje = esperadosHoje
+    ? Math.round((presentesEsperados / esperadosHoje) * 100)
+    : null;
+
+  // Cobertura docente: cada turma com aula hoje já teve ponto de professor?
+  const coberturaProfessores = useMemo(
+    () =>
+      turmasHoje.map((t) => {
+        const ponto = pontosProf.find((p) => p.turma === t.id);
+        return {
+          id: t.id,
+          nome: t.nome,
+          professor: ponto?.professor_nome || null,
+          entrada: hhmm(ponto?.check_in),
+        };
+      }),
+    [turmasHoje, pontosProf],
+  );
+
+  const turmasComProfessor = coberturaProfessores.filter(
+    (t) => t.professor,
+  ).length;
+
+  const proximaISO = FORMACOES.map((f) => getProximasAulas(f.id, 1)[0])
+    .filter(Boolean)
+    .sort()[0];
+
   const irParaAdmin = (filtro = {}, anchor = "adm-buscar") => {
     try {
       localStorage.setItem(CHAVE_FILTRO_RAPIDO, JSON.stringify(filtro));
@@ -209,9 +248,8 @@ export default function HomeAdmin({ user, setView }) {
     }
   };
 
-  const irParaGestaoRapida = () => {
-    // No App.jsx, a tela da Gestão Rápida é registrada com a chave "limpeza".
-    if (typeof setView === "function") setView("limpeza");
+  const ir = (tela) => {
+    if (typeof setView === "function") setView(tela);
   };
 
   const acoesRapidas = [
@@ -223,19 +261,28 @@ export default function HomeAdmin({ user, setView }) {
       onClick: () => irParaAdmin({ status: "todos" }, "adm-buscar"),
     },
     {
-      titulo: "Registros sem saída",
-      icone: ICONES.saida,
-      cor: "#f59e0b",
-      descricao: `${stats.pendentesSaida} registro(s) antigo(s) a fechar`,
-      destaque: stats.pendentesSaida > 0,
-      onClick: () => irParaAdmin({ status: "pendente_saida" }, "adm-buscar"),
+      titulo: "Justificativas",
+      icone: ICONES.justificativa,
+      cor: "#8b5cf6",
+      descricao: justPendentes.length
+        ? `${justPendentes.length} aguardando resposta`
+        : "Nenhuma pendente",
+      destaque: justPendentes.length > 0,
+      onClick: () => ir("limpeza"),
+    },
+    {
+      titulo: "Folha de ponto",
+      icone: ICONES.professor,
+      cor: "#0ea5e9",
+      descricao: "Registros dos professores",
+      onClick: () => ir("professores"),
     },
     {
       titulo: "Auditoria de Faltas",
       icone: ICONES.auditoria,
       cor: "#14b8a6",
       descricao: "Gestão Rápida: nomes e faltas",
-      onClick: irParaGestaoRapida,
+      onClick: () => ir("limpeza"),
     },
     {
       titulo: "Exportar Relatório",
@@ -251,7 +298,7 @@ export default function HomeAdmin({ user, setView }) {
       className="app-wrapper"
       style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px" }}
     >
-      {/* CABEÇALHO COM MÉTRICAS GERAIS */}
+      {/* CABEÇALHO COM MÉTRICAS DO DIA */}
       <div
         className="shadow-card"
         style={{
@@ -281,11 +328,18 @@ export default function HomeAdmin({ user, setView }) {
                 fontSize: "0.85rem",
               }}
             >
-              Central de Comando • Geração Tech 4.0
+              Central de Comando • {formatarDataBR(hoje)}
             </span>
             <h1 style={{ margin: "10px 0", fontSize: "2.5rem" }}>
               Olá, {user?.nome?.split(" ")[0] || "Nazaré"}! 👋
             </h1>
+            <p style={{ margin: 0, fontSize: "0.9rem", color: "var(--text-dim)" }}>
+              {turmasHoje.length
+                ? `${turmasHoje.length} turma(s) com aula hoje: ${turmasHoje
+                    .map((t) => t.nome)
+                    .join(", ")}.`
+                : "Nenhuma turma tem aula hoje pelo cronograma."}
+            </p>
           </div>
           <div style={{ textAlign: "right" }}>
             <button
@@ -326,85 +380,52 @@ export default function HomeAdmin({ user, setView }) {
           style={{
             marginTop: "35px",
             display: "grid",
-            gridTemplateColumns: "1fr 1fr 1fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
             gap: "20px",
           }}
         >
-          <div
-            style={{
-              background: "rgba(0,128,128,0.1)",
-              padding: "20px",
-              borderRadius: "12px",
-              textAlign: "center",
-              border: "1px solid rgba(0,128,128,0.2)",
-            }}
-          >
-            <h4
-              style={{
-                marginTop: 0,
-                fontSize: "0.75rem",
-                color: "var(--text-dim)",
-              }}
-            >
-              PRESENÇAS HOJE
-            </h4>
-            <h2 style={{ fontSize: "2.5rem", margin: 0, color: "var(--accent)" }}>
-              {stats.sessoesAtivas}
-            </h2>
-            <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-              Alunos que marcaram presença
-            </p>
-          </div>
-
-          <div
-            style={{
-              background: "rgba(245, 158, 11, 0.1)",
-              padding: "20px",
-              borderRadius: "12px",
-              textAlign: "center",
-              border: "1px solid rgba(245, 158, 11, 0.2)",
-            }}
-          >
-            <h4
-              style={{
-                marginTop: 0,
-                fontSize: "0.75rem",
-                color: "var(--text-dim)",
-              }}
-            >
-              REGISTROS SEM SAÍDA
-            </h4>
-            <h2 style={{ fontSize: "2.5rem", margin: 0, color: "#f59e0b" }}>
-              {stats.pendentesSaida}
-            </h2>
-            <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-              Registros antigos a fechar
-            </p>
-          </div>
-
-          <div
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              padding: "20px",
-              borderRadius: "12px",
-              textAlign: "center",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
-          >
-            <h4
-              style={{
-                marginTop: 0,
-                fontSize: "0.75rem",
-                color: "var(--text-dim)",
-              }}
-            >
-              TOTAL DA ESCOLA
-            </h4>
-            <h2 style={{ fontSize: "2.5rem", margin: 0 }}>
-              {stats.totalAlunos}
-            </h2>
-            <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>Alunos na base</p>
-          </div>
+          <Cartao
+            rotulo="PRESENÇAS HOJE"
+            valor={stats.sessoesAtivas}
+            detalhe={
+              esperadosHoje
+                ? `de ${esperadosHoje} alunos com aula hoje`
+                : "sem aula prevista hoje"
+            }
+            cor="var(--accent)"
+          />
+          <Cartao
+            rotulo="TAXA DO DIA"
+            valor={taxaHoje == null ? "—" : `${taxaHoje}%`}
+            detalhe={
+              taxaHoje == null
+                ? "nenhuma turma em aula"
+                : `${presentesEsperados} de ${esperadosHoje} presentes`
+            }
+            cor={taxaHoje != null && taxaHoje < 60 ? "#f59e0b" : "#22c55e"}
+          />
+          <Cartao
+            rotulo="PROFESSORES"
+            valor={`${turmasComProfessor}/${turmasHoje.length}`}
+            detalhe="turmas com ponto do professor"
+            cor={
+              turmasHoje.length && turmasComProfessor < turmasHoje.length
+                ? "#f59e0b"
+                : "#22c55e"
+            }
+          />
+          <Cartao
+            rotulo="JUSTIFICATIVAS"
+            valor={justPendentes.length}
+            detalhe="aguardando resposta"
+            cor={justPendentes.length ? "#8b5cf6" : "var(--text-dim)"}
+          />
+          <Cartao
+            rotulo="TOTAL DA ESCOLA"
+            valor={stats.totalAlunos}
+            detalhe="alunos na base"
+            cor="var(--text-main)"
+          />
         </div>
       </div>
 
@@ -461,6 +482,79 @@ export default function HomeAdmin({ user, setView }) {
       >
         {/* COLUNA ESQUERDA */}
         <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
+          <div className="shadow-card" style={{ padding: "25px" }}>
+            <h4 style={{ marginTop: 0, marginBottom: "18px" }}>
+              📊 Presença por turma (hoje)
+            </h4>
+            {presencaPorTurma.length === 0 ? (
+              <p style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                Nenhuma turma com aula hoje. A próxima aula prevista é{" "}
+                {proximaISO ? formatarDataBR(proximaISO) : "—"}.
+              </p>
+            ) : (
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "14px" }}
+              >
+                {presencaPorTurma.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() =>
+                      irParaAdmin(
+                        { turma: t.id, status: "presentes_no_dia" },
+                        "adm-buscar",
+                      )
+                    }
+                    style={{
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      font: "inherit",
+                      color: "inherit",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontSize: "0.8rem",
+                        marginBottom: "5px",
+                      }}
+                    >
+                      <span>
+                        {t.nome}{" "}
+                        <span style={{ color: "var(--text-dim)" }}>
+                          {t.horario}
+                        </span>
+                      </span>
+                      <strong>
+                        {t.presentes}/{t.total} · {t.pct}%
+                      </strong>
+                    </div>
+                    <div
+                      style={{
+                        background: "var(--border-subtle)",
+                        height: "8px",
+                        borderRadius: "4px",
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${t.pct}%`,
+                          background: t.pct < 60 ? "#f59e0b" : "var(--accent)",
+                          height: "100%",
+                          transition: "width 0.6s ease",
+                        }}
+                      />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="shadow-card" style={{ padding: "25px" }}>
             <div
               style={{
@@ -519,7 +613,7 @@ export default function HomeAdmin({ user, setView }) {
                       <div
                         style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}
                       >
-                        {aluno.turma_nome || getNomeCurto(aluno.formacao)}
+                        {aluno.turma_nome || nomeTurma(aluno.formacao)}
                       </div>
                     </div>
                     <span
@@ -536,98 +630,137 @@ export default function HomeAdmin({ user, setView }) {
               </div>
             )}
           </div>
-
-          <div className="shadow-card" style={{ padding: "25px" }}>
-            <h4 style={{ marginTop: 0, marginBottom: "18px" }}>
-              📊 Distribuição por Formação
-            </h4>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "14px" }}
-            >
-              {contagemPorCurso.map((item) => (
-                <div key={item.curso}>
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      fontSize: "0.8rem",
-                      marginBottom: "5px",
-                    }}
-                  >
-                    <span>{item.rotulo}</span>
-                    <strong>{item.total}</strong>
-                  </div>
-                  <div
-                    style={{
-                      background: "var(--border-subtle)",
-                      height: "8px",
-                      borderRadius: "4px",
-                      overflow: "hidden",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${(item.total / maiorContagemCurso) * 100}%`,
-                        background: item.cor,
-                        height: "100%",
-                        transition: "width 0.6s ease",
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* COLUNA DIREITA */}
         <div style={{ display: "flex", flexDirection: "column", gap: "25px" }}>
           <div
             className="shadow-card"
-            style={{ padding: "25px", borderTop: "4px solid #f59e0b" }}
+            style={{ padding: "25px", borderTop: "4px solid #0ea5e9" }}
           >
-            <h4>⚡ Engajamento Hoje</h4>
-            <div style={{ marginTop: "15px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h4 style={{ margin: 0 }}>🧑‍🏫 Professores hoje</h4>
+              <button
+                className="btn-secondary"
+                style={{ fontSize: "0.7rem", padding: "5px 10px" }}
+                onClick={() => ir("professores")}
+              >
+                Folha de ponto
+              </button>
+            </div>
+            {coberturaProfessores.length === 0 ? (
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  color: "var(--text-dim)",
+                  marginBottom: 0,
+                }}
+              >
+                Sem aula hoje.
+              </p>
+            ) : (
               <div
                 style={{
                   display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: "5px",
-                  fontSize: "0.85rem",
+                  flexDirection: "column",
+                  gap: "10px",
+                  marginTop: "15px",
                 }}
               >
-                <span>Presença Real</span>
-                <span>
-                  {(
-                    (stats.sessoesAtivas / (stats.totalAlunos || 1)) *
-                    100
-                  ).toFixed(0)}
-                  %
-                </span>
+                {coberturaProfessores.map((t) => (
+                  <div
+                    key={t.id}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "0.8rem",
+                    }}
+                  >
+                    <span>{t.nome}</span>
+                    <span
+                      style={{
+                        color: t.professor ? "var(--accent)" : "#f59e0b",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {t.professor
+                        ? `${t.professor}${t.entrada ? ` · ${t.entrada}` : ""}`
+                        : "sem ponto"}
+                    </span>
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
+
+          <div
+            className="shadow-card"
+            style={{ padding: "25px", borderTop: "4px solid #8b5cf6" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <h4 style={{ margin: 0 }}>📄 Justificativas pendentes</h4>
+              <button
+                className="btn-secondary"
+                style={{ fontSize: "0.7rem", padding: "5px 10px" }}
+                onClick={() => ir("limpeza")}
+              >
+                Responder
+              </button>
+            </div>
+            {justPendentes.length === 0 ? (
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  color: "var(--text-dim)",
+                  marginBottom: 0,
+                }}
+              >
+                Nada aguardando resposta.
+              </p>
+            ) : (
               <div
                 style={{
-                  background: "var(--border-subtle)",
-                  height: "8px",
-                  borderRadius: "4px",
-                  overflow: "hidden",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                  marginTop: "15px",
                 }}
               >
-                <div
-                  style={{
-                    width: `${(stats.sessoesAtivas / (stats.totalAlunos || 1)) * 100}%`,
-                    background: "var(--accent)",
-                    height: "100%",
-                    transition: "width 1s",
-                  }}
-                />
+                {justPendentes.slice(0, 5).map((j) => (
+                  <div key={j.id} style={{ fontSize: "0.8rem" }}>
+                    <div style={{ fontWeight: "bold" }}>{j.aluno_email}</div>
+                    <div style={{ color: "var(--text-dim)", fontSize: "0.7rem" }}>
+                      {formatarDataBR(j.data)} · {nomeTurma(j.turma)}
+                    </div>
+                  </div>
+                ))}
+                {justPendentes.length > 5 && (
+                  <span
+                    style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}
+                  >
+                    +{justPendentes.length - 5} na Gestão Rápida
+                  </span>
+                )}
               </div>
-            </div>
+            )}
           </div>
 
           <div className="shadow-card" style={{ padding: "25px" }}>
             <h4 style={{ marginBottom: "15px", color: "var(--accent)" }}>
-              📅 Próxima Aula
+              📅 Agenda
             </h4>
             <div
               style={{
@@ -636,31 +769,23 @@ export default function HomeAdmin({ user, setView }) {
                 borderRadius: "8px",
               }}
             >
-              <h3 style={{ margin: "0 0 10px 0" }}>{proximaData}</h3>
-              <p style={{ margin: 0, fontSize: "0.9rem" }}>
-                <strong>Pauta:</strong> {pautaHoje}
-              </p>
+              {turmasHoje.length ? (
+                turmasHoje.map((t) => (
+                  <p key={t.id} style={{ margin: "0 0 8px", fontSize: "0.85rem" }}>
+                    <strong>{t.nome}</strong> ·{" "}
+                    {t.janelas?.label ||
+                      `${formatarHoraDecimal(t.janelas?.aula?.inicio || 0)}`}
+                  </p>
+                ))
+              ) : (
+                <p style={{ margin: 0, fontSize: "0.85rem" }}>
+                  Próxima aula prevista:{" "}
+                  <strong>
+                    {proximaISO ? formatarDataBR(proximaISO) : "sem aulas futuras"}
+                  </strong>
+                </p>
+              )}
             </div>
-          </div>
-
-          <div
-            className="shadow-card"
-            style={{ padding: "25px", borderTop: "4px solid #ef4444" }}
-          >
-            <h4 style={{ marginTop: 0 }}>🔔 Presenças Fechadas Hoje</h4>
-            <p
-              style={{
-                fontSize: "2rem",
-                margin: "5px 0",
-                fontWeight: "bold",
-              }}
-            >
-              {stats.concluidosHoje}
-            </p>
-            <p style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
-              Marcações com entrada e saída já preenchidas (a saída entra
-              sozinha no fim da aula).
-            </p>
           </div>
         </div>
       </div>

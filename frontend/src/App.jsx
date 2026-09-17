@@ -25,6 +25,7 @@ import HomeAdmin from "./HomeAdmin";
 import ProfessorHome from "./ProfessorHome";
 import JustificarFalta from "./JustificarFalta";
 import Cronograma from "./Cronograma";
+import FolhaPontoProfessores from "./FolhaPontoProfessores";
 
 // Libera a marcação de presença em qualquer dia e horário para gravação de
 // vídeo ou teste interno. Mantenha `false` em produção — o servidor valida.
@@ -447,6 +448,16 @@ export default function App() {
                 <button
                   className="btn-secondary"
                   style={{
+                    border:
+                      view === "professores" ? "2px solid #052768;" : "none",
+                  }}
+                  onClick={() => setView("professores")}
+                >
+                  Professores
+                </button>
+                <button
+                  className="btn-secondary"
+                  style={{
                     border: view === "limpeza" ? "2px solid #052768;" : "none",
                   }}
                   onClick={() => setView("limpeza")}
@@ -493,6 +504,7 @@ export default function App() {
         <HomeAdmin
           stats={stats} // Agora 'stats' está definido e virá do banco de dados
           user={user}
+          setView={setView}
         />
       ) : view === "admin" && user.role === "admin" ? (
         <Admin user={user} setView={setView} />
@@ -506,6 +518,8 @@ export default function App() {
         <Cronograma setView={setView} />
       ) : view === "limpeza" && user.role === "admin" ? (
         <GestaoRapida user={user} setView={setView} />
+      ) : view === "professores" && user.role === "admin" ? (
+        <FolhaPontoProfessores />
       ) : user.role === "professor" ? (
         <ProfessorHome user={user} />
       ) : (

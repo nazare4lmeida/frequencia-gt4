@@ -99,6 +99,14 @@ export default function ProfessorHome({ user }) {
   useEffect(() => { carregar(); }, []);
   useEffect(() => { if (selTurma) { setRel(null); carregar(); if (tab === "turma") carregarRel(); } }, [selTurma]);
 
+  // A lista de datas vem em ordem decrescente e inclui aulas futuras. O
+  // professor trabalha na aula de hoje, entao ela vem selecionada; fora de
+  // dia de aula, cai na aula mais recente ja realizada.
+  const dataPadrao = (datas) => {
+    const hojeISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/Fortaleza" });
+    return datas.find((d) => d === hojeISO) || datas.find((d) => d < hojeISO) || datas[0];
+  };
+
   const carregarRel = async () => {
     setCarregandoRel(true);
     try {
@@ -110,15 +118,15 @@ export default function ProfessorHome({ user }) {
           ...(data.datas || []).map(soData),
           ...(data.registros || []).map((r) => soData(r.data)),
         ].filter(Boolean))].sort().reverse();
-        if (datas.length && !dataSel) setDataSel(datas[0]);
+        if (datas.length && !dataSel) setDataSel(dataPadrao(datas));
       }
     } catch { /* silencioso */ }
     setCarregandoRel(false);
   };
   useEffect(() => { if (tab === "turma" && !rel) carregarRel(); }, [tab]);
-  // Se a data escolhida sumir da lista (troca de turma), volta para a mais recente.
+  // Se a data escolhida sumir da lista (troca de turma), volta para a de hoje.
   useEffect(() => {
-    if (rel && datasDisp.length && !datasDisp.includes(dataSel)) setDataSel(datasDisp[0]);
+    if (rel && datasDisp.length && !datasDisp.includes(dataSel)) setDataSel(dataPadrao(datasDisp));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rel]);
 
