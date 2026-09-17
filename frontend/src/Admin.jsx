@@ -12,6 +12,8 @@ import {
 } from "./Constants";
 import { fetchComToken } from "./Api";
 
+const ALUNOS_POR_PAGINA = 25;
+
 export default function Admin({ user }) {
   const [busca, setBusca] = useState("");
   const [filtroTurma, setFiltroTurma] = useState("todos");
@@ -19,6 +21,7 @@ export default function Admin({ user }) {
   const [filtroStatus, setFiltroStatus] = useState("todos");
   const [alunos, setAlunos] = useState([]);
   const [totalEncontrado, setTotalEncontrado] = useState(0);
+  const [pagina, setPagina] = useState(1);
   const [dataBusca, setDataBusca] = useState(hojeBrasilia());
   const [periodoExport, setPeriodoExport] = useState({ inicio: "", fim: "" });
   const [stats, setStats] = useState({
@@ -127,6 +130,7 @@ export default function Admin({ user }) {
           // Ajuste para o novo formato de objeto { total, alunos }
           setAlunos(data.alunos || []);
           setTotalEncontrado(data.total || 0);
+          setPagina(1);
         }
       } catch (err) {
         console.error(err);
@@ -149,10 +153,19 @@ export default function Admin({ user }) {
         buscarAlunos(busca);
       } else {
         setAlunos([]);
+        setPagina(1);
       }
     }, 500);
     return () => clearTimeout(timer);
   }, [busca, filtroStatus, filtroTurma, dataBusca, buscarAlunos]);
+
+  // A busca devolve a turma inteira de uma vez; a listagem é paginada aqui.
+  const totalPaginas = Math.max(1, Math.ceil(alunos.length / ALUNOS_POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const alunosPagina = alunos.slice(
+    (paginaAtual - 1) * ALUNOS_POR_PAGINA,
+    paginaAtual * ALUNOS_POR_PAGINA,
+  );
   // 3. Ver Detalhes
   const verDetalhes = async (aluno) => {
     setCarregando(true);
@@ -633,7 +646,11 @@ export default function Admin({ user }) {
                   color: "#f4f8ff",
                 }}
               >
-                {totalEncontrado} registros encontrados
+                {alunos.length > 0
+                  ? `${(paginaAtual - 1) * ALUNOS_POR_PAGINA + 1}-${
+                      (paginaAtual - 1) * ALUNOS_POR_PAGINA + alunosPagina.length
+                    } de ${totalEncontrado} registros`
+                  : `${totalEncontrado} registros encontrados`}
               </span>
             </div>
 
@@ -654,8 +671,7 @@ export default function Admin({ user }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* Aqui usamos o .map direto, pois a lógica de faltas agora é na outra tela */}
-                  {alunos.map((aluno) => (
+                  {alunosPagina.map((aluno) => (
                     <tr
                       key={aluno.email}
                       style={{ borderBottom: "1px solid var(--border-subtle)" }}
@@ -699,6 +715,42 @@ export default function Admin({ user }) {
                   ? "Processando..."
                   : "Use a busca para gerenciar alunos."}
               </p>
+            )}
+
+            {totalPaginas > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "12px",
+                  marginTop: "18px",
+                }}
+              >
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: "0.75rem", padding: "6px 12px" }}
+                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                  disabled={paginaAtual === 1}
+                >
+                  ← Anterior
+                </button>
+                <span
+                  style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}
+                >
+                  Página {paginaAtual} de {totalPaginas}
+                </span>
+                <button
+                  className="btn-secondary"
+                  style={{ fontSize: "0.75rem", padding: "6px 12px" }}
+                  onClick={() =>
+                    setPagina((p) => Math.min(totalPaginas, p + 1))
+                  }
+                  disabled={paginaAtual === totalPaginas}
+                >
+                  Próxima →
+                </button>
+              </div>
             )}
           </div>
         </div>

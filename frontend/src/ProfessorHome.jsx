@@ -380,17 +380,13 @@ export default function ProfessorHome({ user }) {
                   {datasDisp.length === 0 ? (
                     <p style={{ fontSize: 13, color: "var(--text-dim)" }}>Sem datas de aula para esta turma.</p>
                   ) : (
-                    <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 6 }}>
+                    <select value={dataSel} onChange={(e) => setDataSel(e.target.value)}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 9, fontSize: 14, fontWeight: 700,
+                        border: "1px solid rgba(255,255,255,.2)", background: "#0f2647", color: "#fff" }}>
                       {datasDisp.map((d) => (
-                        <button key={d} type="button" onClick={() => setDataSel(d)}
-                          style={{ flex: "0 0 auto", padding: "8px 14px", borderRadius: 100, cursor: "pointer", fontSize: 13, fontWeight: 700,
-                            border: "1px solid " + (dataSel === d ? "#2563EB" : "rgba(255,255,255,.2)"),
-                            background: dataSel === d ? "#2563EB" : "transparent",
-                            color: dataSel === d ? "#fff" : "var(--text-dim)", whiteSpace: "nowrap" }}>
-                          {dLabel(d)}
-                        </button>
+                        <option key={d} value={d}>{dLabel(d)}</option>
                       ))}
-                    </div>
+                    </select>
                   )}
                 </div>
 

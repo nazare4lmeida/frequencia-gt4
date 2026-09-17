@@ -554,6 +554,8 @@ export default function GestaoRapida({ user, setView }) {
   const [coTurma, setCoTurma] = useState("todos");
   const [justs, setJusts] = useState([]);
   const [justStatus, setJustStatus] = useState("pendente");
+  // Cada monitor cuida so das justificativas da(s) turma(s) dele.
+  const [justTurma, setJustTurma] = useState("todos");
   const [justResp, setJustResp] = useState({});
   const [justPag, setJustPag] = useState(1);
   const JUST_POR = 10;
@@ -568,6 +570,7 @@ export default function GestaoRapida({ user, setView }) {
     } catch {}
   };
   useEffect(() => { carregarJusts(justStatus); setJustPag(1); /* eslint-disable-next-line */ }, [justStatus]);
+  useEffect(() => { setJustPag(1); }, [justTurma]);
 
   const responderJust = async (id, status) => {
     try {
@@ -608,7 +611,11 @@ export default function GestaoRapida({ user, setView }) {
       </div>
     );
 
-  const totalPagJust = Math.max(1, Math.ceil(justs.length / JUST_POR));
+  const justsFiltradas =
+    justTurma === "todos"
+      ? justs
+      : justs.filter((j) => String(j.turma || "") === justTurma);
+  const totalPagJust = Math.max(1, Math.ceil(justsFiltradas.length / JUST_POR));
   const totalPagAl = Math.max(1, Math.ceil(alunosFiltrados.length / AL_POR));
 
   return (
@@ -674,20 +681,35 @@ export default function GestaoRapida({ user, setView }) {
             </div>
           </div>
 
-          {justs.length === 0 ? (
+          <div className="gr-field" style={{ maxWidth: 260, marginBottom: 14 }}>
+            <label className="gr-label">Turma</label>
+            <select
+              className="gr-input"
+              value={justTurma}
+              onChange={(e) => setJustTurma(e.target.value)}
+            >
+              <option value="todos">Todas as turmas</option>
+              {(turmasDisponiveis.length ? turmasDisponiveis : FORMACOES).map((t) => (
+                <option key={t.id} value={t.id}>{t.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          {justsFiltradas.length === 0 ? (
             <div className="gr-empty">
-              Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}.
+              Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}
+              {justTurma !== "todos" ? ` em ${nomeTurma(justTurma)}` : ""}.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {justs.slice((justPag - 1) * JUST_POR, justPag * JUST_POR).map((j) => (
+              {justsFiltradas.slice((justPag - 1) * JUST_POR, justPag * JUST_POR).map((j) => (
                 <div key={j.id} className="gr-item">
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <div>
                       <div className="gr-item-title">{j.aluno_email}</div>
                       <div className="gr-item-meta">
                         {String(j.data).slice(0, 10).split("-").reverse().join("/")}
-                        {j.turma ? " · " + j.turma : ""}
+                        {j.turma ? " · " + nomeTurma(j.turma) : ""}
                       </div>
                     </div>
                     <span
@@ -743,7 +765,7 @@ export default function GestaoRapida({ user, setView }) {
             </div>
           )}
 
-          {justs.length > JUST_POR && (
+          {justsFiltradas.length > JUST_POR && (
             <div className="gr-pager">
               <button
                 className="gr-btn gr-btn--ghost gr-btn--sm"
