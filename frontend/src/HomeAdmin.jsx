@@ -59,14 +59,6 @@ const IconeBadge = ({ path, cor }) => (
   </div>
 );
 
-// Hora atual em Brasília no formato HH:MM, usada para o check-out rápido.
-const horaAgoraBrasilia = () =>
-  new Date().toLocaleTimeString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
 export default function HomeAdmin({ user, setView }) {
   const [stats, setStats] = useState({
     totalAlunos: 0,
@@ -75,11 +67,10 @@ export default function HomeAdmin({ user, setView }) {
     pendentesSaida: 0,
   });
 
-  const [alunosNoPredio, setAlunosNoPredio] = useState([]);
+  const [presentesHoje, setPresentesHoje] = useState([]);
   const [loading, setLoading] = useState(true);
   const [turmasDisponiveis, setTurmasDisponiveis] = useState([]);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState(null);
-  const [checkoutEmAndamento, setCheckoutEmAndamento] = useState(null);
 
   // Curso (fullstack/ia/fullcycle) a partir da turma real, com fallback
   // pela lista estática e, na falta dela, por palavras-chave no nome.
@@ -164,10 +155,7 @@ export default function HomeAdmin({ user, setView }) {
           pendentesSaida: dataStats.pendentesSaida || 0,
         });
 
-        const noPredio = (dataLista.alunos || []).filter(
-          (aluno) => !aluno.check_out,
-        );
-        setAlunosNoPredio(noPredio);
+        setPresentesHoje(dataLista.alunos || []);
       }
       setUltimaAtualizacao(new Date());
     } catch (err) {
@@ -192,10 +180,10 @@ export default function HomeAdmin({ user, setView }) {
         { curso: "fullcycle", rotulo: "FullCycle", cor: "#6366f1" },
       ].map((item) => ({
         ...item,
-        total: alunosNoPredio.filter((a) => cursoDoAluno(a) === item.curso)
+        total: presentesHoje.filter((a) => cursoDoAluno(a) === item.curso)
           .length,
       })),
-    [alunosNoPredio],
+    [presentesHoje],
   );
 
   const maiorContagemCurso = Math.max(
@@ -226,39 +214,6 @@ export default function HomeAdmin({ user, setView }) {
     if (typeof setView === "function") setView("limpeza");
   };
 
-  // Check-out relâmpago direto da Home, sem precisar abrir o Admin.
-  const registrarSaidaAgora = async (aluno) => {
-    if (
-      !window.confirm(`Registrar check-out agora para ${aluno.nome}?`)
-    )
-      return;
-    setCheckoutEmAndamento(aluno.email);
-    try {
-      const res = await fetch(`${API_URL}/admin/checkout-manual`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({
-          email: aluno.email,
-          data: hojeBrasilia(),
-          check_out: horaAgoraBrasilia(),
-        }),
-      });
-      if (res.ok) {
-        await carregarDashboard();
-      } else {
-        const d = await res.json().catch(() => ({}));
-        alert(d.error || "Erro ao registrar check-out.");
-      }
-    } catch {
-      alert("Erro de conexão ao registrar check-out.");
-    } finally {
-      setCheckoutEmAndamento(null);
-    }
-  };
-
   const acoesRapidas = [
     {
       titulo: "Buscar & Gerenciar",
@@ -268,10 +223,10 @@ export default function HomeAdmin({ user, setView }) {
       onClick: () => irParaAdmin({ status: "todos" }, "adm-buscar"),
     },
     {
-      titulo: "Aguardando Check-out",
+      titulo: "Registros sem saída",
       icone: ICONES.saida,
       cor: "#f59e0b",
-      descricao: `${stats.pendentesSaida} aluno(s) ainda no prédio`,
+      descricao: `${stats.pendentesSaida} registro(s) antigo(s) a fechar`,
       destaque: stats.pendentesSaida > 0,
       onClick: () => irParaAdmin({ status: "pendente_saida" }, "adm-buscar"),
     },
@@ -391,12 +346,14 @@ export default function HomeAdmin({ user, setView }) {
                 color: "var(--text-dim)",
               }}
             >
-              CHECK-INS HOJE
+              PRESENÇAS HOJE
             </h4>
             <h2 style={{ fontSize: "2.5rem", margin: 0, color: "var(--accent)" }}>
               {stats.sessoesAtivas}
             </h2>
-            <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>Alunos presentes</p>
+            <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
+              Alunos que marcaram presença
+            </p>
           </div>
 
           <div
@@ -415,13 +372,13 @@ export default function HomeAdmin({ user, setView }) {
                 color: "var(--text-dim)",
               }}
             >
-              PRESENTES AGORA
+              REGISTROS SEM SAÍDA
             </h4>
             <h2 style={{ fontSize: "2.5rem", margin: 0, color: "#f59e0b" }}>
               {stats.pendentesSaida}
             </h2>
             <p style={{ fontSize: "0.8rem", opacity: 0.7 }}>
-              Aguardando Check-out
+              Registros antigos a fechar
             </p>
           </div>
 
@@ -513,13 +470,13 @@ export default function HomeAdmin({ user, setView }) {
                 marginBottom: "15px",
               }}
             >
-              <h4 style={{ margin: 0 }}>🏫 Alunos no Prédio Agora</h4>
+              <h4 style={{ margin: 0 }}>🏫 Presenças de Hoje</h4>
               <span style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
-                {alunosNoPredio.length} no total
+                {presentesHoje.length} no total
               </span>
             </div>
 
-            {alunosNoPredio.length === 0 ? (
+            {presentesHoje.length === 0 ? (
               <p
                 style={{
                   textAlign: "center",
@@ -530,7 +487,7 @@ export default function HomeAdmin({ user, setView }) {
               >
                 {loading
                   ? "Carregando..."
-                  : "Ninguém marcou entrada hoje ainda."}
+                  : "Ninguém marcou presença hoje ainda."}
               </p>
             ) : (
               <div
@@ -542,7 +499,7 @@ export default function HomeAdmin({ user, setView }) {
                   overflowY: "auto",
                 }}
               >
-                {alunosNoPredio.map((aluno) => (
+                {presentesHoje.map((aluno) => (
                   <div
                     key={aluno.email}
                     style={{
@@ -562,20 +519,18 @@ export default function HomeAdmin({ user, setView }) {
                       <div
                         style={{ fontSize: "0.7rem", color: "var(--text-dim)" }}
                       >
-                        {aluno.turma_nome || getNomeCurto(aluno.formacao)} •
-                        entrou às {aluno.check_in || "--:--"}
+                        {aluno.turma_nome || getNomeCurto(aluno.formacao)}
                       </div>
                     </div>
-                    <button
-                      className="btn-secondary"
-                      disabled={checkoutEmAndamento === aluno.email}
-                      onClick={() => registrarSaidaAgora(aluno)}
-                      style={{ fontSize: "0.7rem", padding: "6px 10px" }}
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: "bold",
+                        color: "var(--accent)",
+                      }}
                     >
-                      {checkoutEmAndamento === aluno.email
-                        ? "..."
-                        : "Registrar saída"}
-                    </button>
+                      ✔ Presença registrada
+                    </span>
                   </div>
                 ))}
               </div>
@@ -692,7 +647,7 @@ export default function HomeAdmin({ user, setView }) {
             className="shadow-card"
             style={{ padding: "25px", borderTop: "4px solid #ef4444" }}
           >
-            <h4 style={{ marginTop: 0 }}>🔔 Concluídos Hoje</h4>
+            <h4 style={{ marginTop: 0 }}>🔔 Presenças Fechadas Hoje</h4>
             <p
               style={{
                 fontSize: "2rem",
@@ -703,7 +658,8 @@ export default function HomeAdmin({ user, setView }) {
               {stats.concluidosHoje}
             </p>
             <p style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
-              Alunos que já bateram entrada e saída hoje.
+              Marcações com entrada e saída já preenchidas (a saída entra
+              sozinha no fim da aula).
             </p>
           </div>
         </div>

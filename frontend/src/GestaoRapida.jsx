@@ -393,11 +393,12 @@ export default function GestaoRapida({ user, setView }) {
     }
   };
 
-  // Preenche o check-out com o horário atual e envia — mesmo endpoint do Admin.
-  const adicionarCheckoutAgora = async () => {
+  // Fecha um registro antigo que ficou sem saída — mesmo endpoint do Admin.
+  // Com a presença em um clique, a saída já entra sozinha no fim da aula.
+  const fecharRegistroAntigo = async () => {
     if (
       !window.confirm(
-        `Registrar check-out agora (${horaAgoraBrasilia()}) para ${alunoSelecionado.nome}?`,
+        `Completar a saída (${horaAgoraBrasilia()}) do registro de ${alunoSelecionado.nome}?`,
       )
     )
       return;
@@ -416,10 +417,10 @@ export default function GestaoRapida({ user, setView }) {
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        alert(d.msg || "Check-out adicionado!");
+        alert(d.msg || "Registro completado!");
         verDetalhes(alunoSelecionado);
       } else {
-        alert(d.error || "Erro ao adicionar check-out.");
+        alert(d.error || "Erro ao completar o registro.");
       }
     } catch {
       alert("Erro de conexão.");
@@ -548,7 +549,7 @@ export default function GestaoRapida({ user, setView }) {
   }, [alunos, filtroTurma]);
   useEffect(() => { setAlPag(1); }, [busca, filtroTurma, ordenacao]);
 
-  // ==== Check-out em massa + Justificativas (para monitores, sem wp-admin) ====
+  // ==== Fechamento de registros antigos + Justificativas (sem wp-admin) ====
   const [coData, setCoData] = useState(new Date().toISOString().split("T")[0]);
   const [coTurma, setCoTurma] = useState("todos");
   const [justs, setJusts] = useState([]);
@@ -580,8 +581,8 @@ export default function GestaoRapida({ user, setView }) {
     } catch { alert("Erro de conexao."); }
   };
 
-  const checkoutMassa = async () => {
-    if (!window.confirm("Completar o check-out de todos que bateram entrada mas nao saida nesta data?")) return;
+  const fecharRegistrosAntigosMassa = async () => {
+    if (!window.confirm("Completar a saida de todos os registros sem saida nesta data?")) return;
     try {
       const res = await fetch(`${API_URL}/admin/checkout-massa`, {
         method: "POST",
@@ -589,7 +590,7 @@ export default function GestaoRapida({ user, setView }) {
         body: JSON.stringify({ data: coData, turma: coTurma === "todos" ? null : coTurma }),
       });
       const d = await res.json();
-      if (res.ok) alert("Check-out em massa concluido.");
+      if (res.ok) alert("Registros completados.");
       else alert(d.error || "Erro.");
     } catch { alert("Erro de conexao."); }
   };
@@ -614,14 +615,15 @@ export default function GestaoRapida({ user, setView }) {
     <div className="app-wrapper gr-page">
       <style>{GR_CSS}</style>
 
-      {/* ======================= CHECK-OUT EM MASSA ======================= */}
+      {/* ============ FECHAR REGISTROS ANTIGOS SEM SAIDA (LEGADO) ============ */}
       <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#10B981" }}>
         <div className="gr-card-body">
           <div className="gr-card-head" style={{ marginBottom: 0 }}>
-            <h3>⏳ Check-out em massa</h3>
+            <h3>⏳ Fechar registros antigos sem saída</h3>
           </div>
           <p className="gr-sub">
-            Completa a saída de quem bateu entrada mas esqueceu o check-out, no horário de fim da aula.
+            Hoje o aluno marca presença em <b>um clique</b> e a saída entra sozinha no fim da aula.
+            Use isto só para registros anteriores a essa mudança, que ficaram sem horário de saída.
           </p>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -647,8 +649,8 @@ export default function GestaoRapida({ user, setView }) {
                 ))}
               </select>
             </div>
-            <button className="gr-btn gr-btn--green" onClick={checkoutMassa}>
-              ✔ Completar check-outs
+            <button className="gr-btn gr-btn--green" onClick={fecharRegistrosAntigosMassa}>
+              ✔ Completar registros
             </button>
           </div>
         </div>
@@ -979,8 +981,8 @@ export default function GestaoRapida({ user, setView }) {
                   <thead>
                     <tr>
                       <th>Data</th>
-                      <th>Entrada</th>
-                      <th>Saída</th>
+                      <th>Presença marcada às</th>
+                      <th>Fim da aula</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1039,7 +1041,10 @@ export default function GestaoRapida({ user, setView }) {
 
                 {/* Ponto manual */}
                 <div className="gr-panel">
-                  <h5>➕ Inserir Ponto Manual</h5>
+                  <h5>➕ Marcar Presença Manual</h5>
+                  <p className="gr-sub" style={{ margin: "0 0 12px" }}>
+                    Uma marcação só: escolha a data; os horários já vêm do horário da aula da turma.
+                  </p>
                   <div className="gr-grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                     <input
                       type="date"
@@ -1066,13 +1071,13 @@ export default function GestaoRapida({ user, setView }) {
 
                   <div className="gr-divider" />
 
-                  <h5>⏳ Adicionar check-out em registro existente</h5>
+                  <h5>⏳ Completar registro antigo sem saída</h5>
                   <p className="gr-sub" style={{ margin: "0 0 12px" }}>
-                    Use quando o aluno marcou a entrada mas <b style={{ color: "var(--gr-title)" }}>esqueceu de bater a saída</b>.
-                    Preenche automaticamente com o horário atual.
+                    Só para registros <b style={{ color: "var(--gr-title)" }}>anteriores à presença em um clique</b>,
+                    que ficaram sem horário de saída. Preenche com o horário atual.
                   </p>
-                  <button className="gr-btn gr-btn--primary gr-btn--block" onClick={adicionarCheckoutAgora}>
-                    ✅ Adicionar Check-out Agora
+                  <button className="gr-btn gr-btn--primary gr-btn--block" onClick={fecharRegistroAntigo}>
+                    ✅ Completar Registro
                   </button>
                 </div>
 

@@ -15,10 +15,10 @@ const NOMES_DIAS = [
 const CAMPOS_HORARIO = [
   { campo: "aula_inicio", rotulo: "Aula começa" },
   { campo: "aula_fim", rotulo: "Aula termina" },
-  { campo: "checkin_inicio", rotulo: "Check-in abre" },
-  { campo: "checkin_fim", rotulo: "Check-in fecha" },
-  { campo: "checkout_inicio", rotulo: "Check-out abre" },
-  { campo: "checkout_fim", rotulo: "Check-out fecha" },
+  { campo: "checkin_inicio", rotulo: "Presença abre" },
+  { campo: "checkin_fim", rotulo: "Presença fecha" },
+  { campo: "checkout_inicio", rotulo: "Saída automática (início)" },
+  { campo: "checkout_fim", rotulo: "Saída automática (fim)" },
 ];
 
 /** 18.5 -> "18:30" (para preencher <input type="time">) */
@@ -414,7 +414,11 @@ export default function Cronograma({ setView }) {
             }}
           >
             {CAMPOS_HORARIO.map(({ campo, rotulo }) => (
-              <div key={campo}>
+              <div key={campo} title={
+                campo.startsWith("checkout")
+                  ? "O aluno não bate saída: ela é preenchida no fim da aula."
+                  : undefined
+              }>
                 <label
                   className="stat-label"
                   style={{ textAlign: "left", fontSize: "0.7rem" }}

@@ -218,8 +218,14 @@ export default function Admin({ user }) {
   };
 
   // 5. Registro Manual
-  const adicionarCheckout = async () => {
-    if (!window.confirm("Adicionar/atualizar o check-out neste registro?"))
+  // Fecha registros antigos (anteriores à presença em um clique) que ficaram
+  // sem saída. Hoje a saída é preenchida sozinha no fim da aula.
+  const fecharRegistroAntigo = async () => {
+    if (
+      !window.confirm(
+        "Completar a saída deste registro antigo com o horário de fim da aula?",
+      )
+    )
       return;
     try {
       const res = await fetch(`${API_URL}/admin/checkout-manual`, {
@@ -236,16 +242,21 @@ export default function Admin({ user }) {
       });
       const d = await res.json();
       if (res.ok) {
-        alert(d.msg || "Check-out adicionado!");
+        alert(d.msg || "Registro completado!");
         verDetalhes(alunoSelecionado);
-      } else alert(d.error || "Erro ao adicionar check-out.");
+      } else alert(d.error || "Erro ao completar o registro.");
     } catch {
       alert("Erro de conexao.");
     }
   };
 
   const registrarManual = async () => {
-    if (!window.confirm("Deseja inserir este registro manualmente?")) return;
+    if (
+      !window.confirm(
+        "Marcar presença manualmente nesta data, no horário da aula?",
+      )
+    )
+      return;
     try {
       const res = await fetch(`${API_URL}/admin/ponto-manual`, {
         method: "POST",
@@ -586,8 +597,9 @@ export default function Admin({ user }) {
             >
               <option value="todos">Todos Alunos</option>
               <option value="presentes_no_dia">Presentes no Dia</option>
-              <option value="pendente_saida">Esqueceram Saída</option>
-              <option value="checkout_antecipado">Saída Antecipada</option>
+              <option value="pendente_saida">
+                Registros antigos sem saída
+              </option>
               <option value="incompleto">Cadastro Incompleto</option>
             </select>
           </div>
@@ -772,8 +784,9 @@ export default function Admin({ user }) {
           >
             <h4 style={{ color: "#f59e0b" }}>Lembrete Rápido</h4>
             <p style={{ fontSize: "0.75rem" }}>
-              Use o filtro "Esqueceram Saída" para identificar quem não fechou o
-              ponto na última aula.
+              O aluno marca presença em <b>um clique</b>: a saída entra sozinha
+              no fim da aula. Use o filtro "Registros antigos sem saída" apenas
+              para limpar dados anteriores a essa mudança.
             </p>
           </div>
         </div>
@@ -846,8 +859,8 @@ export default function Admin({ user }) {
                       }}
                     >
                       <th style={{ padding: "8px" }}>Data</th>
-                      <th>Entrada</th>
-                      <th>Saída</th>
+                      <th>Presença marcada às</th>
+                      <th>Fim da aula</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -974,7 +987,17 @@ export default function Admin({ user }) {
                     borderRadius: "8px",
                   }}
                 >
-                  <h5 style={{ marginTop: 0 }}>➕ Inserir Ponto Manual</h5>
+                  <h5 style={{ marginTop: 0 }}>➕ Marcar Presença Manual</h5>
+                  <p
+                    style={{
+                      fontSize: "12px",
+                      color: "var(--text-dim)",
+                      margin: "0 0 10px",
+                    }}
+                  >
+                    Uma marcação só: escolha a data e os horários já vêm do
+                    horário da aula da turma (ajuste apenas se precisar).
+                  </p>
                   <div
                     style={{
                       display: "grid",
@@ -1028,7 +1051,7 @@ export default function Admin({ user }) {
                     }}
                   ></div>
                   <h5 style={{ margin: "0 0 8px", color: "#e8eefc" }}>
-                    &#9203; Adicionar check-out em registro existente
+                    &#9203; Completar registro antigo sem sa&iacute;da
                   </h5>
                   <p
                     style={{
@@ -1037,10 +1060,10 @@ export default function Admin({ user }) {
                       margin: "0 0 10px",
                     }}
                   >
-                    Use quando o aluno marcou a entrada mas{" "}
-                    <b>esqueceu de bater a sa&iacute;da</b>. Preencha a{" "}
-                    <b>data</b> e o <b>hor&aacute;rio de sa&iacute;da</b> acima
-                    e clique abaixo.
+                    S&oacute; para registros <b>anteriores</b> à presen&ccedil;a
+                    em um clique, que ficaram sem hor&aacute;rio de sa&iacute;da.
+                    Preencha a <b>data</b> e o <b>hor&aacute;rio de
+                    sa&iacute;da</b> acima e clique abaixo.
                   </p>
                   <button
                     className="btn-ponto"
@@ -1054,9 +1077,9 @@ export default function Admin({ user }) {
                       cursor: "pointer",
                       fontWeight: 700,
                     }}
-                    onClick={adicionarCheckout}
+                    onClick={fecharRegistroAntigo}
                   >
-                    &#9989; Adicionar Check-out
+                    &#9989; Completar registro antigo
                   </button>
                 </div>
               </div>
