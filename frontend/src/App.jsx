@@ -26,8 +26,8 @@ import ProfessorHome from "./ProfessorHome";
 import JustificarFalta from "./JustificarFalta";
 import Cronograma from "./Cronograma";
 
-// Libera check-in/check-out em qualquer dia e horário para gravação de vídeo
-// ou teste interno. Mantenha `false` em produção — o servidor também valida.
+// Libera a marcação de presença em qualquer dia e horário para gravação de
+// vídeo ou teste interno. Mantenha `false` em produção — o servidor valida.
 const MODO_TESTE = false;
 
 export default function App() {
@@ -52,11 +52,6 @@ export default function App() {
   const [form, setForm] = useState(dadosSalvos || { email: "", dataNasc: "" });
   const [historico, setHistorico] = useState([]);
   const [popup, setPopup] = useState({ show: false, msg: "", tipo: "" });
-  const [feedback, setFeedback] = useState({
-    nota: 0,
-    revisao: "",
-    modal: false,
-  });
   const [loadingCheckIn, setLoadingCheckIn] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const salvo = localStorage.getItem("geracaotech_theme");
@@ -148,7 +143,7 @@ export default function App() {
 
       if (!alarmeAtivo || !user?.formacao || user.role === "admin") return;
 
-      // Avisa 30 minutos após a abertura do check-in, em dia de aula.
+      // Avisa 30 minutos após a abertura da marcação, em dia de aula.
       const janelas =
         cronogramaRef.current?.janelas || getJanelasHorario(user.formacao);
       const temAula = cronogramaRef.current
@@ -157,7 +152,7 @@ export default function App() {
       const horaAviso = formatarHoraDecimal(janelas.checkIn.inicio + 0.5);
 
       if (temAula && horaFormatada === horaAviso) {
-        exibirPopup("A aula começou. Faça seu check-in.", "aviso");
+        exibirPopup("A aula começou. Marque sua presença.", "aviso");
       }
     }, 10000);
     return () => clearInterval(timer);
@@ -177,10 +172,8 @@ export default function App() {
       return {
         isDiaDeAula: true,
         podeCheckIn: true,
-        podeCheckOut: true,
         diasCorretos: "Confira no Portal do Aluno os dias de aula da sua turma",
         rotuloCheckIn: "liberado",
-        rotuloCheckOut: "liberado",
       };
     }
 
@@ -197,14 +190,10 @@ export default function App() {
       podeCheckIn:
         agora >= janelasTurma.checkIn.inicio &&
         agora <= janelasTurma.checkIn.fim,
-      podeCheckOut:
-        agora >= janelasTurma.checkOut.inicio &&
-        agora <= janelasTurma.checkOut.fim,
       diasCorretos: dias.length
         ? dias.map((d) => nomes[d]).join(", ")
         : getDiasAulaLegivel(user?.formacao),
       rotuloCheckIn: `${formatarHoraDecimal(janelasTurma.checkIn.inicio)} às ${formatarHoraDecimal(janelasTurma.checkIn.fim)}`,
-      rotuloCheckOut: `${formatarHoraDecimal(janelasTurma.checkOut.inicio)} às ${formatarHoraDecimal(janelasTurma.checkOut.fim)}`,
     };
   };
 
@@ -322,23 +311,18 @@ export default function App() {
       );
     });
 
-  const baterPonto = async (extra = {}) => {
+  const baterPonto = async () => {
     if (!user || !user.email || !user.token) {
       return exibirPopup("Sessão expirada. Faça login novamente.", "erro");
     }
 
     try {
+      // Presença em UM toque: `presente: true` faz o servidor preencher a
+      // saída com o fim da aula da turma.
       let payload = {
         aluno_id: user.email.trim().toLowerCase(),
-        ...extra,
+        presente: true,
       };
-
-      const ehCheckin = !extra.nota;
-
-      // Presenca em UM toque: no check-in ja marcamos presente=true para o
-      // servidor preencher a saida automaticamente (aluno nao precisa voltar
-      // para bater check-out).
-      if (ehCheckin) payload.presente = true;
 
       // O servidor manda: se a conferência de local estiver desligada, nem
       // pedimos permissão de GPS. Sem resposta do servidor, caímos na
@@ -348,7 +332,7 @@ export default function App() {
           ? Boolean(cronogramaTurma.exigeLocalizacao)
           : getFormacao(user.formacao)?.modalidade === "presencial";
 
-      if (ehCheckin && precisaLocalizacao) {
+      if (precisaLocalizacao) {
         const localizacao = await obterLocalizacaoAtual();
         payload = {
           ...payload,
@@ -367,17 +351,6 @@ export default function App() {
 
       exibirPopup(data.msg, "sucesso");
       await carregarHistorico();
-
-      if (!extra.nota) {
-        setTimeout(() => {
-          exibirPopup(
-            "📌 Lembrete: Realize o Check-out dentro da janela de saída da sua turma.",
-            "aviso",
-          );
-        }, 1000);
-      }
-
-      setFeedback({ nota: 0, revisao: "", modal: false });
     } catch (err) {
       console.error("Erro bater ponto:", err);
       exibirPopup(err.message || "Erro de comunicação com o servidor.", "erro");
@@ -583,12 +556,13 @@ export default function App() {
                   background: "rgba(245, 158, 11, 0.12)",
                 }}
               >
-                Clique em "FAZER CHECK-IN" e aguarde alguns segundos para registrar sua presença na aula de hoje. Na hora do check-out, clique em "CHECK-OUT" e avalie sua experiência na aula.
+                Clique em "MARCAR PRESENÇA" e aguarde alguns segundos. É um clique só: sua entrada e sua saída são lançadas no horário da aula de hoje.
               </div>
             ) : (
               <div className="info-banner" style={{ margin: "15px 0" }}>
-                ℹ Check-in e check-out ficam liberados nos dias de aula ao vivo
-                da sua turma, dentro das janelas abaixo.
+                ℹ A presença é marcada com um clique só, nos dias de aula ao
+                vivo da sua turma, dentro da janela abaixo. A saída é lançada
+                automaticamente no fim da aula.
               </div>
             )}
 
@@ -597,17 +571,14 @@ export default function App() {
                 const {
                   isDiaDeAula: hojeTemAula,
                   podeCheckIn,
-                  podeCheckOut,
                   diasCorretos,
                   rotuloCheckIn,
-                  rotuloCheckOut,
                 } = validarHorarioPonto();
                 const hojeISO = hojeBrasilia();
                 const registroHoje = historico.find(
                   (h) => h.data?.substring(0, 10) === hojeISO,
                 );
                 const jaFezIn = !!registroHoje?.check_in;
-                const jaFezOut = !!registroHoje?.check_out;
 
                 return (
                   <>
@@ -647,7 +618,7 @@ export default function App() {
                           letterSpacing: "1px",
                         }}
                       >
-                        🕒 Janelas Oficiais de Registro
+                        🕒 Horários Oficiais da Turma
                       </h5>
                       <div
                         style={{
@@ -665,7 +636,7 @@ export default function App() {
                               marginBottom: "5px",
                             }}
                           >
-                            ENTRADA
+                            MARCAR PRESENÇA
                           </span>
                           <strong style={{ fontSize: "1.1rem" }}>
                             {(() => {
@@ -690,11 +661,11 @@ export default function App() {
                               marginBottom: "5px",
                             }}
                           >
-                            SAÍDA
+                            AULA
                           </span>
                           <strong style={{ fontSize: "1.1rem" }}>
                             {(() => {
-                              const j = janelasTurma.checkOut;
+                              const j = janelasTurma.aula;
                               return `${formatarHoraDecimal(j.inicio)} — ${formatarHoraDecimal(j.fim)}`;
                             })()}
                           </strong>
@@ -790,8 +761,8 @@ export default function App() {
                 <thead>
                   <tr>
                     <th>Data</th>
-                    <th>Entrada</th>
-                    <th>Saída</th>
+                    <th>Presença marcada às</th>
+                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -820,11 +791,7 @@ export default function App() {
                             ? new Date(h.check_in).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" })
                             : "--:--"}
                         </td>
-                        <td>
-                          {h.check_out
-                            ? new Date(h.check_out).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" })
-                            : "--:--"}
-                        </td>
+                        <td>{h.check_in ? "Presente" : "—"}</td>
                       </tr>
                     ))
                   )}
@@ -837,62 +804,6 @@ export default function App() {
         </main>
       )}
 
-      {/* MODAL DE FEEDBACK (FORA DO WRAPPER DE LARGURA) */}
-      {feedback.modal && (
-        <div className="modal-overlay">
-          <div className="modal-content shadow-xl">
-            <h3>Finalizar Check-out</h3>
-            <p className="text-muted" style={{ marginBottom: "15px" }}>
-              Como foi sua experiência na aula de hoje?
-            </p>
-            <div
-              className="rating-group"
-              style={{
-                display: "flex",
-                gap: "10px",
-                margin: "15px 0",
-                justifyContent: "center",
-                alignItems: "center",
-                color: "var(--text-dim)",
-              }}
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  className={`btn-rating ${feedback.nota === n ? "active" : ""}`}
-                  onClick={() => setFeedback({ ...feedback, nota: n })}
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-            <textarea
-              className="input-notes"
-              placeholder="Algum comentário ou dúvida?"
-              value={feedback.revisao}
-              onChange={(e) =>
-                setFeedback({ ...feedback, revisao: e.target.value })
-              }
-            />
-            <div style={{ display: "flex", gap: "10px", marginTop: "15px" }}>
-              <button
-                className="btn-ponto in"
-                onClick={() =>
-                  baterPonto({ nota: feedback.nota, revisao: feedback.revisao })
-                }
-              >
-                Confirmar Saída
-              </button>
-              <button
-                className="btn-secondary"
-                onClick={() => setFeedback({ ...feedback, modal: false })}
-              >
-                Voltar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

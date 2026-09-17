@@ -29,18 +29,22 @@ turma, com os dias e horários certos. A sessão dura 12 horas.
 Aula inaugural: **08/09/2026** (presencial e online, todas as turmas).
 Aulas: **09/09/2026 a 19/11/2026**. Formatura: 25/11/2026.
 
-### Check-in e check-out
+### Marcação de presença
 
-As janelas seguem o turno da sua turma (a coordenação pode ajustá-las):
+**É um clique só.** No botão **MARCAR PRESENÇA** sua presença já fica
+completa: a saída é lançada automaticamente no horário de fim da aula da sua
+turma. Você **não precisa voltar** para bater check-out.
 
-| Turno | Check-in      | Check-out     |
-| ----- | ------------- | ------------- |
-| Manhã | 08:00 – 10:30 | 11:30 – 12:30 |
-| Tarde | 13:00 – 15:30 | 16:30 – 17:30 |
-| Noite | 18:30 – 20:30 | 21:30 – 22:30 |
+A janela de marcação segue o turno da sua turma (a coordenação pode
+ajustá-la):
 
-A presença só conta **depois do check-out**. Nas turmas presenciais o
-check-in confere sua localização; nas online, não.
+| Turno | Marcar presença | Aula          |
+| ----- | --------------- | ------------- |
+| Manhã | 08:00 – 10:30   | 08:00 – 12:00 |
+| Tarde | 13:00 – 15:30   | 13:00 – 17:00 |
+| Noite | 18:30 – 20:30   | 18:00 – 22:00 |
+
+Nas turmas presenciais a marcação confere sua localização; nas online, não.
 
 ---
 
@@ -54,7 +58,7 @@ aba **Cronograma** — sem SQL e sem deploy.
 | Ação                                        | Onde na tela              |
 | ------------------------------------------- | ------------------------- |
 | Trocar os dias da semana da turma           | Dias e horários           |
-| Mudar horário de aula, check-in e check-out | Dias e horários           |
+| Mudar horário de aula e da marcação         | Dias e horários           |
 | Adicionar uma data de aula avulsa           | Adicionar uma aula        |
 | Editar a data ou o tema de uma aula         | Lista de datas → Editar   |
 | Cancelar uma aula mantendo o histórico      | Lista de datas → Cancelar |
@@ -64,11 +68,24 @@ aba **Cronograma** — sem SQL e sem deploy.
 **Cancelar x Remover:** cancelar tira a data do cálculo de frequência e
 mantém o registro; remover apaga de vez. Prefira cancelar.
 
-Mudou alguma coisa? O check-in dos alunos passa a seguir a regra nova em até
+Mudou alguma coisa? A marcação dos alunos passa a seguir a regra nova em até
 1 minuto, sem reiniciar nada.
 
 Trocar os dias da semana **não** mexe nas datas já cadastradas — ele passa a
 valer para as datas que você gerar em lote depois.
+
+### Presença em um clique: o que muda no painel
+
+O aluno faz **uma única marcação** e o servidor preenche a saída com o fim
+da aula da turma. Por isso:
+
+- Não existe mais "aluno aguardando check-out" — quem marcou presença já está
+  com o registro fechado.
+- O filtro **Registros antigos sem saída** e as ações de **completar
+  registro** (individual e em massa, na Gestão Rápida) servem apenas para
+  limpar dados anteriores a essa mudança.
+- O **ponto manual** do painel lança entrada e saída de uma vez, já com o
+  horário da aula da turma.
 
 ---
 
@@ -120,7 +137,7 @@ diferentes, então a decisão é da organização.
 | `ADMIN_EMAIL`, `ADMIN_PASS`      | Acesso administrativo                    |
 | `EXIGIR_LOCALIZACAO`             | `false` desliga a conferência de GPS     |
 | `CLASSROOM_LAT`, `CLASSROOM_LNG` | Endereço da aula presencial              |
-| `CHECKIN_RADIUS_METERS`          | Raio aceito no check-in (padrão 120)     |
+| `CHECKIN_RADIUS_METERS`          | Raio aceito na marcação (padrão 120)     |
 | `TEST_LOCATION_LAT/LNG`          | Segundo local aceito, para teste         |
 | `MODO_TESTE`                     | `true` libera ponto em qualquer dia/hora |
 
@@ -130,7 +147,7 @@ Já vem desligada — as aulas presenciais acontecem em 3 sedes, então não há
 endereço único para validar. O navegador nem pede permissão de GPS.
 
 Para religar um dia: `EXIGIR_LOCALIZACAO=true` no `.env` **e** preencher
-`CLASSROOM_LAT` / `CLASSROOM_LNG`. Sem as coordenadas, o check-in presencial
+`CLASSROOM_LAT` / `CLASSROOM_LNG`. Sem as coordenadas, a marcação presencial
 falha — o servidor avisa no console quando sobe nessa configuração.
 
 ### Liberando o ponto para teste (WINDOW_OPEN)

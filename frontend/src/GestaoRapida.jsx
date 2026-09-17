@@ -393,11 +393,12 @@ export default function GestaoRapida({ user, setView }) {
     }
   };
 
-  // Preenche o check-out com o horário atual e envia — mesmo endpoint do Admin.
-  const adicionarCheckoutAgora = async () => {
+  // Fecha um registro antigo que ficou sem saída — mesmo endpoint do Admin.
+  // Com a presença em um clique, a saída já entra sozinha no fim da aula.
+  const fecharRegistroAntigo = async () => {
     if (
       !window.confirm(
-        `Registrar check-out agora (${horaAgoraBrasilia()}) para ${alunoSelecionado.nome}?`,
+        `Completar a saída (${horaAgoraBrasilia()}) do registro de ${alunoSelecionado.nome}?`,
       )
     )
       return;
@@ -416,10 +417,10 @@ export default function GestaoRapida({ user, setView }) {
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok) {
-        alert(d.msg || "Check-out adicionado!");
+        alert(d.msg || "Registro completado!");
         verDetalhes(alunoSelecionado);
       } else {
-        alert(d.error || "Erro ao adicionar check-out.");
+        alert(d.error || "Erro ao completar o registro.");
       }
     } catch {
       alert("Erro de conexão.");
@@ -548,11 +549,13 @@ export default function GestaoRapida({ user, setView }) {
   }, [alunos, filtroTurma]);
   useEffect(() => { setAlPag(1); }, [busca, filtroTurma, ordenacao]);
 
-  // ==== Check-out em massa + Justificativas (para monitores, sem wp-admin) ====
+  // ==== Fechamento de registros antigos + Justificativas (sem wp-admin) ====
   const [coData, setCoData] = useState(new Date().toISOString().split("T")[0]);
   const [coTurma, setCoTurma] = useState("todos");
   const [justs, setJusts] = useState([]);
   const [justStatus, setJustStatus] = useState("pendente");
+  // Cada monitor cuida so das justificativas da(s) turma(s) dele.
+  const [justTurma, setJustTurma] = useState("todos");
   const [justResp, setJustResp] = useState({});
   const [justPag, setJustPag] = useState(1);
   const JUST_POR = 10;
@@ -567,6 +570,7 @@ export default function GestaoRapida({ user, setView }) {
     } catch {}
   };
   useEffect(() => { carregarJusts(justStatus); setJustPag(1); /* eslint-disable-next-line */ }, [justStatus]);
+  useEffect(() => { setJustPag(1); }, [justTurma]);
 
   const responderJust = async (id, status) => {
     try {
@@ -580,8 +584,8 @@ export default function GestaoRapida({ user, setView }) {
     } catch { alert("Erro de conexao."); }
   };
 
-  const checkoutMassa = async () => {
-    if (!window.confirm("Completar o check-out de todos que bateram entrada mas nao saida nesta data?")) return;
+  const fecharRegistrosAntigosMassa = async () => {
+    if (!window.confirm("Completar a saida de todos os registros sem saida nesta data?")) return;
     try {
       const res = await fetch(`${API_URL}/admin/checkout-massa`, {
         method: "POST",
@@ -589,7 +593,7 @@ export default function GestaoRapida({ user, setView }) {
         body: JSON.stringify({ data: coData, turma: coTurma === "todos" ? null : coTurma }),
       });
       const d = await res.json();
-      if (res.ok) alert("Check-out em massa concluido.");
+      if (res.ok) alert("Registros completados.");
       else alert(d.error || "Erro.");
     } catch { alert("Erro de conexao."); }
   };
@@ -607,21 +611,26 @@ export default function GestaoRapida({ user, setView }) {
       </div>
     );
 
-  const totalPagJust = Math.max(1, Math.ceil(justs.length / JUST_POR));
+  const justsFiltradas =
+    justTurma === "todos"
+      ? justs
+      : justs.filter((j) => String(j.turma || "") === justTurma);
+  const totalPagJust = Math.max(1, Math.ceil(justsFiltradas.length / JUST_POR));
   const totalPagAl = Math.max(1, Math.ceil(alunosFiltrados.length / AL_POR));
 
   return (
     <div className="app-wrapper gr-page">
       <style>{GR_CSS}</style>
 
-      {/* ======================= CHECK-OUT EM MASSA ======================= */}
+      {/* ============ FECHAR REGISTROS ANTIGOS SEM SAIDA (LEGADO) ============ */}
       <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#10B981" }}>
         <div className="gr-card-body">
           <div className="gr-card-head" style={{ marginBottom: 0 }}>
-            <h3>⏳ Check-out em massa</h3>
+            <h3>⏳ Fechar registros antigos sem saída</h3>
           </div>
           <p className="gr-sub">
-            Completa a saída de quem bateu entrada mas esqueceu o check-out, no horário de fim da aula.
+            Hoje o aluno marca presença em <b>um clique</b> e a saída entra sozinha no fim da aula.
+            Use isto só para registros anteriores a essa mudança, que ficaram sem horário de saída.
           </p>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
@@ -647,8 +656,8 @@ export default function GestaoRapida({ user, setView }) {
                 ))}
               </select>
             </div>
-            <button className="gr-btn gr-btn--green" onClick={checkoutMassa}>
-              ✔ Completar check-outs
+            <button className="gr-btn gr-btn--green" onClick={fecharRegistrosAntigosMassa}>
+              ✔ Completar registros
             </button>
           </div>
         </div>
@@ -672,20 +681,35 @@ export default function GestaoRapida({ user, setView }) {
             </div>
           </div>
 
-          {justs.length === 0 ? (
+          <div className="gr-field" style={{ maxWidth: 260, marginBottom: 14 }}>
+            <label className="gr-label">Turma</label>
+            <select
+              className="gr-input"
+              value={justTurma}
+              onChange={(e) => setJustTurma(e.target.value)}
+            >
+              <option value="todos">Todas as turmas</option>
+              {(turmasDisponiveis.length ? turmasDisponiveis : FORMACOES).map((t) => (
+                <option key={t.id} value={t.id}>{t.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          {justsFiltradas.length === 0 ? (
             <div className="gr-empty">
-              Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}.
+              Nenhuma justificativa {justStatus !== "todas" ? justStatus : ""}
+              {justTurma !== "todos" ? ` em ${nomeTurma(justTurma)}` : ""}.
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {justs.slice((justPag - 1) * JUST_POR, justPag * JUST_POR).map((j) => (
+              {justsFiltradas.slice((justPag - 1) * JUST_POR, justPag * JUST_POR).map((j) => (
                 <div key={j.id} className="gr-item">
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                     <div>
                       <div className="gr-item-title">{j.aluno_email}</div>
                       <div className="gr-item-meta">
                         {String(j.data).slice(0, 10).split("-").reverse().join("/")}
-                        {j.turma ? " · " + j.turma : ""}
+                        {j.turma ? " · " + nomeTurma(j.turma) : ""}
                       </div>
                     </div>
                     <span
@@ -741,7 +765,7 @@ export default function GestaoRapida({ user, setView }) {
             </div>
           )}
 
-          {justs.length > JUST_POR && (
+          {justsFiltradas.length > JUST_POR && (
             <div className="gr-pager">
               <button
                 className="gr-btn gr-btn--ghost gr-btn--sm"
@@ -979,8 +1003,8 @@ export default function GestaoRapida({ user, setView }) {
                   <thead>
                     <tr>
                       <th>Data</th>
-                      <th>Entrada</th>
-                      <th>Saída</th>
+                      <th>Presença marcada às</th>
+                      <th>Fim da aula</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1039,7 +1063,10 @@ export default function GestaoRapida({ user, setView }) {
 
                 {/* Ponto manual */}
                 <div className="gr-panel">
-                  <h5>➕ Inserir Ponto Manual</h5>
+                  <h5>➕ Marcar Presença Manual</h5>
+                  <p className="gr-sub" style={{ margin: "0 0 12px" }}>
+                    Uma marcação só: escolha a data; os horários já vêm do horário da aula da turma.
+                  </p>
                   <div className="gr-grid-3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
                     <input
                       type="date"
@@ -1066,13 +1093,13 @@ export default function GestaoRapida({ user, setView }) {
 
                   <div className="gr-divider" />
 
-                  <h5>⏳ Adicionar check-out em registro existente</h5>
+                  <h5>⏳ Completar registro antigo sem saída</h5>
                   <p className="gr-sub" style={{ margin: "0 0 12px" }}>
-                    Use quando o aluno marcou a entrada mas <b style={{ color: "var(--gr-title)" }}>esqueceu de bater a saída</b>.
-                    Preenche automaticamente com o horário atual.
+                    Só para registros <b style={{ color: "var(--gr-title)" }}>anteriores à presença em um clique</b>,
+                    que ficaram sem horário de saída. Preenche com o horário atual.
                   </p>
-                  <button className="gr-btn gr-btn--primary gr-btn--block" onClick={adicionarCheckoutAgora}>
-                    ✅ Adicionar Check-out Agora
+                  <button className="gr-btn gr-btn--primary gr-btn--block" onClick={fecharRegistroAntigo}>
+                    ✅ Completar Registro
                   </button>
                 </div>
 
