@@ -2222,6 +2222,44 @@ app.delete("/api/admin/professor/ponto/:id", verificarToken, verificarAdmin, asy
     res.status(500).json({ error: "Erro ao excluir o ponto." });
   }
 });
+// FEEDBACK do aluno (depois da aula) — atualiza a presença do dia
+app.patch("/api/aluno/feedback", verificarToken, async (req, res) => {
+  try {
+    const email = String(req.usuarioLogado.email || req.usuarioLogado.aluno_id || "").trim().toLowerCase();
+    const { nota, revisao, data } = req.body;
+    const dia = (data && /^\d{4}-\d{2}-\d{2}$/.test(data)) ? data : getBrasiliaTime().data;
+    const n = parseInt(nota, 10);
+    const { data: reg } = await supabase.from("presencas").select("id")
+      .eq("aluno_email", email).eq("data", dia).maybeSingle();
+    if (!reg) return res.status(400).json({ error: "Voce ainda nao marcou presenca neste dia." });
+    const { error } = await supabase.from("presencas")
+      .update({ feedback_nota: (n >= 1 && n <= 5) ? n : null, feedback_texto: revisao ? String(revisao).slice(0, 1000) : "" })
+      .eq("id", reg.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: "Erro ao salvar o feedback." }); }
+});
+
+// AVALIACAO do professor (depois da aula) — atualiza o ponto do dia
+app.patch("/api/professor/avaliacao", verificarToken, async (req, res) => {
+  try {
+    const email = String(req.usuarioLogado.email || "").trim().toLowerCase();
+    const { turma, engajamento, nivelamento, observacao, data } = req.body;
+    const dia = (data && /^\d{4}-\d{2}-\d{2}$/.test(data)) ? data : getBrasiliaTime().data;
+    const eng = parseInt(engajamento, 10);
+    let q = supabase.from("presencas_professor").select("id").eq("professor_email", email).eq("data", dia);
+    if (turma) q = q.eq("turma", turma);
+    const { data: reg } = await q.maybeSingle();
+    if (!reg) return res.status(400).json({ error: "Voce ainda nao marcou presenca neste dia." });
+    const { error } = await supabase.from("presencas_professor").update({
+      engajamento: (eng >= 1 && eng <= 5) ? eng : null,
+      nivelamento: nivelamento ? String(nivelamento) : null,
+      observacao: observacao ? String(observacao).slice(0, 1000) : null,
+    }).eq("id", reg.id);
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: "Erro ao salvar a avaliacao." }); }
+});
 
 app.get("/api/health", (_, res) =>
   res.json({ status: "online", modoTeste: MODO_TESTE }),
