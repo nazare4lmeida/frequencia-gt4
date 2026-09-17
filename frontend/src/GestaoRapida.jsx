@@ -219,13 +219,6 @@ const GR_CSS = `
 `;
 
 
-const horaAgoraBrasilia = () =>
-  new Date().toLocaleTimeString("pt-BR", {
-    timeZone: "America/Sao_Paulo",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
 export default function GestaoRapida({ user, setView }) {
   const [alunos, setAlunos] = useState([]);
   const [filtroTurma, setFiltroTurma] = useState("todos");
@@ -393,40 +386,6 @@ export default function GestaoRapida({ user, setView }) {
     }
   };
 
-  // Fecha um registro antigo que ficou sem saída — mesmo endpoint do Admin.
-  // Com a presença em um clique, a saída já entra sozinha no fim da aula.
-  const fecharRegistroAntigo = async () => {
-    if (
-      !window.confirm(
-        `Completar a saída (${horaAgoraBrasilia()}) do registro de ${alunoSelecionado.nome}?`,
-      )
-    )
-      return;
-    try {
-      const res = await fetch(`${API_URL}/admin/checkout-manual`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${user.token}`,
-        },
-        body: JSON.stringify({
-          email: alunoSelecionado.email,
-          data: manualPonto.data || hojeBrasilia(),
-          check_out: horaAgoraBrasilia(),
-        }),
-      });
-      const d = await res.json().catch(() => ({}));
-      if (res.ok) {
-        alert(d.msg || "Registro completado!");
-        verDetalhes(alunoSelecionado);
-      } else {
-        alert(d.error || "Erro ao completar o registro.");
-      }
-    } catch {
-      alert("Erro de conexão.");
-    }
-  };
-
   // Mesma ação de reset de sessão que existe no Admin.
   const resetarSessao = async (email) => {
     if (
@@ -549,9 +508,7 @@ export default function GestaoRapida({ user, setView }) {
   }, [alunos, filtroTurma]);
   useEffect(() => { setAlPag(1); }, [busca, filtroTurma, ordenacao]);
 
-  // ==== Fechamento de registros antigos + Justificativas (sem wp-admin) ====
-  const [coData, setCoData] = useState(new Date().toISOString().split("T")[0]);
-  const [coTurma, setCoTurma] = useState("todos");
+  // ==== Justificativas (sem wp-admin) ====
   const [justs, setJusts] = useState([]);
   const [justStatus, setJustStatus] = useState("pendente");
   // Cada monitor cuida so das justificativas da(s) turma(s) dele.
@@ -584,21 +541,6 @@ export default function GestaoRapida({ user, setView }) {
     } catch { alert("Erro de conexao."); }
   };
 
-  const fecharRegistrosAntigosMassa = async () => {
-    if (!window.confirm("Completar a saida de todos os registros sem saida nesta data?")) return;
-    try {
-      const res = await fetch(`${API_URL}/admin/checkout-massa`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${user.token}` },
-        body: JSON.stringify({ data: coData, turma: coTurma === "todos" ? null : coTurma }),
-      });
-      const d = await res.json();
-      if (res.ok) alert("Registros completados.");
-      else alert(d.error || "Erro.");
-    } catch { alert("Erro de conexao."); }
-  };
-
-
   if (carregando && !modalAberto)
     return (
       <div className="app-wrapper gr-page">
@@ -621,47 +563,6 @@ export default function GestaoRapida({ user, setView }) {
   return (
     <div className="app-wrapper gr-page">
       <style>{GR_CSS}</style>
-
-      {/* ============ FECHAR REGISTROS ANTIGOS SEM SAIDA (LEGADO) ============ */}
-      <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#10B981" }}>
-        <div className="gr-card-body">
-          <div className="gr-card-head" style={{ marginBottom: 0 }}>
-            <h3>⏳ Fechar registros antigos sem saída</h3>
-          </div>
-          <p className="gr-sub">
-            Hoje o aluno marca presença em <b>um clique</b> e a saída entra sozinha no fim da aula.
-            Use isto só para registros anteriores a essa mudança, que ficaram sem horário de saída.
-          </p>
-
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div className="gr-field" style={{ minWidth: 170 }}>
-              <label className="gr-label">Data</label>
-              <input
-                type="date"
-                className="gr-input"
-                value={coData}
-                onChange={(e) => setCoData(e.target.value)}
-              />
-            </div>
-            <div className="gr-field" style={{ minWidth: 200 }}>
-              <label className="gr-label">Turma</label>
-              <select
-                className="gr-input"
-                value={coTurma}
-                onChange={(e) => setCoTurma(e.target.value)}
-              >
-                <option value="todos">Todas</option>
-                {(turmasDisponiveis || []).map((t) => (
-                  <option key={t.id} value={t.id}>{t.nome}</option>
-                ))}
-              </select>
-            </div>
-            <button className="gr-btn gr-btn--green" onClick={fecharRegistrosAntigosMassa}>
-              ✔ Completar registros
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* ======================= JUSTIFICATIVAS ======================= */}
       <div className="gr-card gr-card--accent" style={{ "--gr-accent": "#8B5CF6" }}>
@@ -1091,16 +992,6 @@ export default function GestaoRapida({ user, setView }) {
                     Registrar Presença Manual
                   </button>
 
-                  <div className="gr-divider" />
-
-                  <h5>⏳ Completar registro antigo sem saída</h5>
-                  <p className="gr-sub" style={{ margin: "0 0 12px" }}>
-                    Só para registros <b style={{ color: "var(--gr-title)" }}>anteriores à presença em um clique</b>,
-                    que ficaram sem horário de saída. Preenche com o horário atual.
-                  </p>
-                  <button className="gr-btn gr-btn--primary gr-btn--block" onClick={fecharRegistroAntigo}>
-                    ✅ Completar Registro
-                  </button>
                 </div>
 
                 <button
