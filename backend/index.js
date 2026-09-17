@@ -613,7 +613,7 @@ app.get(
     const cronograma = await cronogramaDb.carregarCronograma(supabase);
 
     try {
-      let query = supabase.from("alunos").select("*");
+      let query = supabase.from("alunos").select("*").range(0, 9999);
 
       if (turma && turma !== "todos") query = query.eq("formacao", turma);
       if (termo)
@@ -1723,7 +1723,7 @@ app.get("/api/professor/turma", verificarToken, async (req, res) => {
     let presencas = [];
     if (emails.length) {
       const { data: pres } = await supabase
-        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails);
+        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails).range(0, 50000);
       presencas = pres || [];
     }
 
@@ -1774,7 +1774,7 @@ app.get("/api/professor/relatorio", verificarToken, async (req, res) => {
     let justificadas = [];
     if (emails.length) {
       const { data: pres } = await supabase
-        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails);
+        .from("presencas").select("aluno_email, data, check_in, check_out").in("aluno_email", emails).range(0, 50000);
       registros = pres || [];
       const { data: just } = await supabase
         .from("justificativas").select("aluno_email, data").eq("status", "aceita").in("aluno_email", emails);

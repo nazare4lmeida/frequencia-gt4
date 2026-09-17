@@ -611,90 +611,20 @@ export default function App() {
 
                 return (
                   <>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "15px",
-                        justifyContent: "center",
-                        marginBottom: "25px",
-                      }}
-                    >
+                    <div style={{ display: "flex", justifyContent: "center", marginBottom: "25px" }}>
                       <button
                         className={`btn-ponto in ${jaFezIn ? "concluido" : ""}`}
                         disabled={jaFezIn || loadingCheckIn}
                         onClick={async () => {
-                          if (loadingCheckIn) return;
-
-                          if (!hojeTemAula) {
-                            exibirPopup(
-                              `Hoje não há aula ao vivo da sua turma (${diasCorretos}).`,
-                              "erro",
-                            );
-                            return;
-                          }
-
-                          if (!podeCheckIn) {
-                            exibirPopup(
-                              `Check-in liberado das ${rotuloCheckIn}.`,
-                              "erro",
-                            );
-                            return;
-                          }
-
-                          try {
-                            setLoadingCheckIn(true);
-                            await baterPonto();
-                          } finally {
-                            setLoadingCheckIn(false);
-                          }
+                          if (loadingCheckIn || jaFezIn) return;
+                          if (!hojeTemAula) { exibirPopup(`Hoje não há aula ao vivo da sua turma (${diasCorretos}).`, "erro"); return; }
+                          if (!podeCheckIn) { exibirPopup(`Presença liberada das ${rotuloCheckIn}.`, "erro"); return; }
+                          try { setLoadingCheckIn(true); await baterPonto(); exibirPopup("Presença registrada! Sua entrada e saída foram lançadas no horário da aula.", "sucesso"); }
+                          finally { setLoadingCheckIn(false); }
                         }}
-                        style={
-                          jaFezIn || loadingCheckIn
-                            ? {
-                                backgroundColor: "#2d3748",
-                                cursor: "default",
-                                opacity: 0.8,
-                                flex: 1,
-                              }
-                            : { flex: 1 }
-                        }
+                        style={jaFezIn || loadingCheckIn ? { backgroundColor: "#2d3748", cursor: "default", opacity: 0.85, width: "100%", maxWidth: 420 } : { width: "100%", maxWidth: 420 }}
                       >
-                        {jaFezIn
-                          ? "✔ CHECK-IN FEITO"
-                          : loadingCheckIn
-                            ? "PROCESSANDO..."
-                            : "FAZER CHECK-IN"}
-                      </button>
-
-                      <button
-                        className={`btn-ponto out ${jaFezOut ? "concluido" : ""}`}
-                        disabled={jaFezOut || !jaFezIn}
-                        onClick={() => {
-                          if (!jaFezIn) {
-                            exibirPopup("Faça o check-in primeiro!", "erro");
-                            return;
-                          }
-                          if (!hojeTemAula || !podeCheckOut) {
-                            exibirPopup(
-                              `Check-out liberado das ${rotuloCheckOut}.`,
-                              "erro",
-                            );
-                            return;
-                          }
-                          setFeedback({ ...feedback, modal: true });
-                        }}
-                        style={
-                          jaFezOut || !jaFezIn
-                            ? {
-                                backgroundColor: "#2d3748",
-                                cursor: "default",
-                                opacity: 0.6,
-                                flex: 1,
-                              }
-                            : { flex: 1 }
-                        }
-                      >
-                        {jaFezOut ? "✔ CHECK-OUT FEITO" : "CHECK-OUT"}
+                        {jaFezIn ? "✔ PRESENÇA REGISTRADA" : loadingCheckIn ? "PROCESSANDO..." : "✅ MARCAR PRESENÇA"}
                       </button>
                     </div>
 
