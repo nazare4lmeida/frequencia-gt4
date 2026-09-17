@@ -688,12 +688,18 @@ app.get(
         status === "checkout_antecipado" ||
         status === "presentes_no_dia"
       ) {
-        const { data: presencas, error: erroPresencasDia } = await supabase
-          .from("presencas")
-          .select("aluno_email, data, check_out")
-          .eq("data", dataAlvo);
-
-        if (erroPresencasDia) throw erroPresencasDia;
+        let presencas = [];
+        for (let pg = 0; pg < 200; pg++) {
+          const { data: parte, error: erroPresencasDia } = await supabase
+            .from("presencas")
+            .select("aluno_email, data, check_out")
+            .eq("data", dataAlvo)
+            .range(pg * 1000, pg * 1000 + 999);
+          if (erroPresencasDia) throw erroPresencasDia;
+          if (!parte || parte.length === 0) break;
+          presencas = presencas.concat(parte);
+          if (parte.length < 1000) break;
+        }
 
         let emailsFiltrados = [];
 
@@ -1058,46 +1064,50 @@ app.get(
     const { turma } = req.params;
     const { inicio, fim } = req.query;
     try {
-      let query = supabase
-        .from("alunos")
-        .select(
-          "nome, email, formacao, presencas(data, check_in, check_out, feedback_nota, feedback_texto)",
-        );
+      // 1) alunos (paginado, sem corte de 1000)
+      let alunos = [];
+      for (let pg = 0; pg < 20; pg++) {
+        let q = supabase.from("alunos").select("nome, email, formacao").range(pg * 1000, pg * 1000 + 999);
+        if (turma !== "todos") q = q.eq("formacao", turma);
+        const { data: parte, error: eA } = await q;
+        if (eA) throw eA;
+        if (!parte || parte.length === 0) break;
+        alunos = alunos.concat(parte);
+        if (parte.length < 1000) break;
+      }
+      const infoPorEmail = new Map(alunos.map((a) => [String(a.email).toLowerCase(), a]));
+      const emails = alunos.map((a) => a.email);
 
-      if (turma !== "todos") query = query.eq("formacao", turma);
+      // 2) presencas desses alunos (em lotes de email), filtrando o periodo
+      let presencas = [];
+      const CHUNK = 150;
+      for (let i = 0; i < emails.length; i += CHUNK) {
+        const grupo = emails.slice(i, i + CHUNK);
+        let q = supabase.from("presencas")
+          .select("aluno_email, data, check_in, check_out, feedback_nota, feedback_texto")
+          .in("aluno_email", grupo);
+        if (inicio) q = q.gte("data", inicio);
+        if (fim) q = q.lte("data", fim);
+        const { data } = await q.range(0, 99999);
+        if (data) presencas = presencas.concat(data);
+      }
 
-      const { data, error } = await query;
-      if (error) throw error;
-
-      const relatorioFormatado = [];
-
-      data.forEach((aluno) => {
-        const nomeAluno = aluno.nome || "Não cadastrado";
-        const formacaoAluno = aluno.formacao || "Não informada";
-
-        if (aluno.presencas && aluno.presencas.length > 0) {
-          aluno.presencas.forEach((p) => {
-            if (inicio && p.data < inicio) return;
-            if (fim && p.data > fim) return;
-            const formatarHoraBruta = (valor) => {
-              if (!valor) return "-";
-              return valor.includes("T")
-                ? valor.split("T")[1].substring(0, 5)
-                : valor.substring(0, 5);
-            };
-
-            relatorioFormatado.push({
-              Nome: nomeAluno,
-              Email: aluno.email,
-              Formacao: formacaoAluno,
-              Data: p.data,
-              Entrada: formatarHoraBruta(p.check_in),
-              Saida: formatarHoraBruta(p.check_out),
-              Nota: p.feedback_nota || "N/A",
-              Feedback: p.feedback_texto || "",
-            });
-          });
-        }
+      const formatarHoraBruta = (valor) => {
+        if (!valor) return "-";
+        return valor.includes("T") ? valor.split("T")[1].substring(0, 5) : valor.substring(0, 5);
+      };
+      const relatorioFormatado = presencas.map((p) => {
+        const a = infoPorEmail.get(String(p.aluno_email).toLowerCase()) || {};
+        return {
+          Nome: a.nome || "Não cadastrado",
+          Email: p.aluno_email,
+          Formacao: a.formacao || "Não informada",
+          Data: p.data,
+          Entrada: formatarHoraBruta(p.check_in),
+          Saida: formatarHoraBruta(p.check_out),
+          Nota: p.feedback_nota || "N/A",
+          Feedback: p.feedback_texto || "",
+        };
       });
 
       res.json(relatorioFormatado);
