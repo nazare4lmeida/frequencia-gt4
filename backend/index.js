@@ -735,11 +735,15 @@ app.get(
         );
       }
 
-      const { data: todasPresencas, error: erroP } = await supabase
-        .from("presencas")
-        .select("aluno_email, data");
-
-      if (erroP) throw erroP;
+      let todasPresencas = [];
+      for (let pg = 0; pg < 200; pg++) {
+        const { data: parteP, error: erroP } = await supabase
+          .from("presencas").select("aluno_email, data").range(pg * 1000, pg * 1000 + 999);
+        if (erroP) throw erroP;
+        if (!parteP || parteP.length === 0) break;
+        todasPresencas = todasPresencas.concat(parteP);
+        if (parteP.length < 1000) break;
+      }
 
       const resultadoFinalComCalculos = resultadoFinal.map((aluno) => {
         const emailAlu = aluno.email?.trim().toLowerCase();
@@ -991,28 +995,44 @@ app.get(
       const { data: listaAlunos, error: errA } = await queryAlunos;
       if (errA) throw errA;
 
-      const emailsTurma = (listaAlunos || []).map((a) => a.email);
+      let emailsTurma = [];
+      if (turma !== "todos") {
+        const als = await todosAlunosDaTurma(turma);
+        emailsTurma = als.map((a) => a.email);
+      }
 
       // 2. Total Histórico (Geral da turma ou do sistema)
-      let queryTotal = supabase
-        .from("presencas")
-        .select("*", { count: "exact", head: true });
+      let totalPresencas = 0;
       if (turma !== "todos") {
-        queryTotal = queryTotal.in("aluno_email", emailsTurma);
+        const CHUNK = 150;
+        for (let i = 0; i < emailsTurma.length; i += CHUNK) {
+          const grupo = emailsTurma.slice(i, i + CHUNK);
+          const { count } = await supabase.from("presencas").select("*", { count: "exact", head: true }).in("aluno_email", grupo);
+          totalPresencas += count || 0;
+        }
+      } else {
+        const { count } = await supabase.from("presencas").select("*", { count: "exact", head: true });
+        totalPresencas = count || 0;
       }
-      const { count: totalPresencas } = await queryTotal;
 
       // 3. Dados dos Círculos (Baseados na dataAlvo)
-      let queryHoje = supabase
-        .from("presencas")
-        .select("check_in, check_out")
-        .eq("data", dataAlvo);
+      let presencasDia = [];
       if (turma !== "todos") {
-        queryHoje = queryHoje.in("aluno_email", emailsTurma);
+        const CHUNK = 150;
+        for (let i = 0; i < emailsTurma.length; i += CHUNK) {
+          const grupo = emailsTurma.slice(i, i + CHUNK);
+          const { data } = await supabase.from("presencas").select("check_in, check_out").eq("data", dataAlvo).in("aluno_email", grupo);
+          if (data) presencasDia = presencasDia.concat(data);
+        }
+      } else {
+        let pg = 0;
+        for (; pg < 50; pg++) {
+          const { data } = await supabase.from("presencas").select("check_in, check_out").eq("data", dataAlvo).range(pg*1000, pg*1000+999);
+          if (!data || data.length === 0) break;
+          presencasDia = presencasDia.concat(data);
+          if (data.length < 1000) break;
+        }
       }
-
-      const { data: presencasDia, error: errH } = await queryHoje;
-      if (errH) throw errH;
 
       const dados = presencasDia || [];
 

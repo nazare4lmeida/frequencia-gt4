@@ -244,7 +244,7 @@ export default function ProfessorHome({ user }) {
   const regsDoDia = rel ? (rel.registros || []).filter((r) => soData(r.data) === dataSel) : [];
   const statusDoDia = {};
   regsDoDia.forEach((r) => { statusDoDia[chaveAluno(r)] = r; });
-  const presentesNoDia = regsDoDia.filter(temPresenca).length;
+  const presentesNoDia = Object.values(statusDoDia).filter(temPresenca).length;
 
   const CARD = { background: "#214d7d", border: "1px solid rgba(255,255,255,.08)", borderRadius: 12, padding: "14px 16px" };
 
