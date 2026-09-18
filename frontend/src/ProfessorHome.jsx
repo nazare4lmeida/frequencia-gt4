@@ -97,6 +97,18 @@ export default function ProfessorHome({ user }) {
     finally { setCarregando(false); }
   };
   useEffect(() => { carregar(); }, []);
+
+  // Traz para a tela a avaliacao que ja foi enviada, para o professor ver o
+  // que respondeu e poder corrigir sem apagar o que estava gravado.
+  useEffect(() => {
+    const r = hoje?.registro;
+    if (!r) return;
+    setAval({
+      engajamento: r.engajamento || 0,
+      nivelamento: r.nivelamento || "",
+      observacao: r.observacao || "",
+    });
+  }, [hoje?.registro?.id, hoje?.registro?.engajamento, hoje?.registro?.nivelamento, hoje?.registro?.observacao]);
   useEffect(() => { if (selTurma) { setRel(null); carregar(); if (tab === "turma") carregarRel(); } }, [selTurma]);
 
   // A lista de datas vem em ordem decrescente e inclui aulas futuras. O
@@ -211,14 +223,23 @@ export default function ProfessorHome({ user }) {
   };
 
   const enviarAvaliacaoDepois = async () => {
-  try {
-    const res = await fetchComToken("/professor/avaliacao", "PATCH", {
-      turma: selTurma, engajamento: aval.engajamento, nivelamento: aval.nivelamento, observacao: aval.observacao,
-    });
-    if (res.ok) setMsg({ tipo: "ok", texto: "Avaliação da aula registrada. Obrigado!" });
-    else { const d = await res.json(); setMsg({ tipo: "erro", texto: d.error || "Erro." }); }
-  } catch { setMsg({ tipo: "erro", texto: "Falha de conexão." }); }
-};
+    if (!aval.engajamento && !aval.nivelamento && !aval.observacao.trim()) {
+      setMsg({ tipo: "erro", texto: "Preencha o engajamento, o nivelamento ou a observação." });
+      return;
+    }
+    setEnviando(true); setMsg(null);
+    try {
+      const res = await fetchComToken("/professor/avaliacao", "PATCH", {
+        turma: selTurma,
+        engajamento: aval.engajamento || undefined,
+        nivelamento: aval.nivelamento || undefined,
+        observacao: aval.observacao,
+      });
+      if (res.ok) { setMsg({ tipo: "ok", texto: "Avaliação da aula registrada. Obrigado!" }); await carregar(); }
+      else { const d = await res.json(); setMsg({ tipo: "erro", texto: d.error || "Erro ao salvar a avaliação." }); }
+    } catch { setMsg({ tipo: "erro", texto: "Falha de conexão." }); }
+    setEnviando(false);
+  };
 
   const exportarExcel = () => {
     if (!rel) return;
@@ -246,6 +267,8 @@ export default function ProfessorHome({ user }) {
   const reg = hoje?.registro;
   const temCheckin = !!reg?.check_in;
   const temCheckout = !!reg?.check_out;
+  // A avaliacao pode chegar depois da presenca: o que vale e o que esta gravado.
+  const avaliacaoEnviada = !!(reg?.engajamento || reg?.nivelamento || reg?.observacao);
 
   const datasDisp = rel
     ? [...new Set([
@@ -309,25 +332,43 @@ export default function ProfessorHome({ user }) {
           ) : temCheckout ? (
             <div className="info-banner" style={{ margin: "14px 0", borderLeft: "5px solid #16A34A" }}>
               <b>Presença do dia concluída.</b>
+              <p style={{ marginTop: 6 }}>
+                Check-in {hhmm(reg.check_in)} &middot; Check-out {hhmm(reg.check_out)}.
+                {avaliacaoEnviada ? " Avaliação enviada. Bom trabalho!" : " Falta só a avaliação da aula."}
+              </p>
+              {/* Avaliacao da aula: pode ser preenchida depois; o que ja foi
+                  enviado aparece preenchido e pode ser corrigido. */}
               {reg?.check_in && (
-  <div style={{ background: "rgba(37,99,235,.06)", border: "1px solid rgba(37,99,235,.25)", borderRadius: 12, padding: 16, marginTop: 14 }}>
-    <h5 style={{ margin: "0 0 4px", color: "#e8eefc" }}>Avaliação da aula <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-dim)" }}>(opcional — ao terminar a aula)</span></h5>
-    <label style={{ fontSize: 12, color: "var(--text-dim)" }}>Engajamento da turma (1 a 5)</label>
-    <div style={{ display: "flex", gap: 6, margin: "6px 0 10px" }}>
-      {[1,2,3,4,5].map((n) => (
-        <button key={n} type="button" onClick={() => setAval({ ...aval, engajamento: n })}
-          style={{ width: 38, height: 38, borderRadius: 9, cursor: "pointer", fontWeight: 700, border: "1px solid " + (aval.engajamento >= n ? "#F5A623" : "rgba(255,255,255,.2)"), background: aval.engajamento >= n ? "rgba(245,166,35,.2)" : "transparent", color: aval.engajamento >= n ? "#F5A623" : "var(--text-dim)" }}>★</button>
-      ))}
-    </div>
-    <input value={aval.nivelamento} onChange={(e) => setAval({ ...aval, nivelamento: e.target.value })}
-      placeholder="Nivelamento (ex.: Em dia / Atrasado)" style={{ width: "100%", boxSizing: "border-box", padding: 9, borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0f2647", color: "#fff", marginBottom: 8 }} />
-    <textarea value={aval.observacao} onChange={(e) => setAval({ ...aval, observacao: e.target.value })}
-      placeholder="Observação (opcional)" rows={2} style={{ width: "100%", boxSizing: "border-box", padding: 9, borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0f2647", color: "#fff", marginBottom: 10 }} />
-    <button type="button" onClick={enviarAvaliacaoDepois}
-      style={{ padding: "9px 18px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, background: "#2563EB", color: "#fff" }}>Enviar avaliação</button>
-  </div>
-)}
-              <p style={{ marginTop: 6 }}>Check-in {hhmm(reg.check_in)} &middot; Check-out {hhmm(reg.check_out)}. Avaliação enviada. Bom trabalho!</p>
+                <div style={{ background: "rgba(37,99,235,.06)", border: "1px solid rgba(37,99,235,.25)", borderRadius: 12, padding: 16, marginTop: 14 }}>
+                  <h5 style={{ margin: "0 0 4px", color: "#e8eefc" }}>
+                    Avaliação da aula{" "}
+                    <span style={{ fontWeight: 400, fontSize: 12, color: "var(--text-dim)" }}>(opcional — pode responder ao terminar a aula)</span>
+                  </h5>
+                  {avaliacaoEnviada && (
+                    <p style={{ margin: "4px 0 0", fontSize: 12, color: "#5FD3A2" }}>✔ Já enviada. Pode alterar e enviar de novo.</p>
+                  )}
+                  <label style={{ fontSize: 12, color: "var(--text-dim)" }}>Engajamento da turma (1 a 5)</label>
+                  <div style={{ display: "flex", gap: 6, margin: "6px 0 10px" }}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button key={n} type="button" onClick={() => setAval({ ...aval, engajamento: n })}
+                        style={{ width: 38, height: 38, borderRadius: 9, cursor: "pointer", fontWeight: 700, border: "1px solid " + (aval.engajamento >= n ? "#F5A623" : "rgba(255,255,255,.2)"), background: aval.engajamento >= n ? "rgba(245,166,35,.2)" : "transparent", color: aval.engajamento >= n ? "#F5A623" : "var(--text-dim)" }}>★</button>
+                    ))}
+                  </div>
+                  <select value={aval.nivelamento} onChange={(e) => setAval({ ...aval, nivelamento: e.target.value })}
+                    style={{ width: "100%", boxSizing: "border-box", padding: 9, borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0f2647", color: "#fff", marginBottom: 8 }}>
+                    <option value="">Nivelamento da turma...</option>
+                    <option value="abaixo">Abaixo do esperado</option>
+                    <option value="adequado">Adequado</option>
+                    <option value="avancado">Avancado</option>
+                  </select>
+                  <textarea value={aval.observacao} onChange={(e) => setAval({ ...aval, observacao: e.target.value })}
+                    placeholder="Observação (opcional)" rows={2} style={{ width: "100%", boxSizing: "border-box", padding: 9, borderRadius: 8, border: "1px solid rgba(255,255,255,.15)", background: "#0f2647", color: "#fff", marginBottom: 10 }} />
+                  <button type="button" onClick={enviarAvaliacaoDepois} disabled={enviando}
+                    style={{ padding: "9px 18px", borderRadius: 9, border: "none", cursor: enviando ? "default" : "pointer", fontWeight: 700, background: avaliacaoEnviada ? "#0E7C57" : "#2563EB", color: "#fff" }}>
+                    {enviando ? "Enviando..." : avaliacaoEnviada ? "Atualizar avaliação" : "Enviar avaliação"}
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <>
@@ -352,9 +393,19 @@ export default function ProfessorHome({ user }) {
                 &#9989; <b>Basta marcar presen&ccedil;a.</b> Seu ponto ser&aacute; registrado automaticamente no <b>hor&aacute;rio da aula</b> da sua turma{hoje?.turma?.janela ? " (" + hoje.turma.janela + ")" : ""} &mdash; entrada e sa&iacute;da.
               </div>
               {!mostrarAval ? (
-                <button className="btn-ponto in" onClick={() => setMostrarAval(true)} disabled={enviando} style={{ width: "100%" }}>
-                  &#9989; Marcar Presen&ccedil;a na aula
-                </button>
+                <>
+                  {/* Presenca em um clique; a avaliacao da aula pode vir depois. */}
+                  <button className="btn-ponto in" onClick={marcarPresente} disabled={enviando} style={{ width: "100%" }}>
+                    {enviando ? "Registrando..." : "✅ Marcar Presença na aula"}
+                  </button>
+                  <button type="button" onClick={() => setMostrarAval(true)} disabled={enviando}
+                    style={{ width: "100%", marginTop: 10, padding: "11px 0", borderRadius: 9, cursor: "pointer", fontWeight: 700, fontSize: 13, background: "transparent", color: "var(--text-dim)", border: "1px solid rgba(255,255,255,.25)" }}>
+                    Marcar presen&ccedil;a e avaliar a aula agora
+                  </button>
+                  <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 8 }}>
+                    A avalia&ccedil;&atilde;o da aula tamb&eacute;m pode ser preenchida depois, quando a aula terminar.
+                  </p>
+                </>
               ) : (
                 <div style={{ ...CARD, marginTop: 8 }}>
                   <h3 style={{ margin: "0 0 12px", fontSize: 16, color: "#fff" }}>Avaliação da aula</h3>
