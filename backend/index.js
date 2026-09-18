@@ -1678,8 +1678,8 @@ app.get("/api/professor/hoje", verificarToken, async (req, res) => {
       let q = supabase.from("presencas_professor").select("*")
         .eq("professor_email", email).eq("data", hoje);
       if (sel.turma) q = q.eq("turma", sel.turma);
-      const r = await q.maybeSingle();
-      reg = r.data || null;
+      const r = await q.limit(1);
+      reg = (r.data || [])[0] || null;
     } catch (e) {
       console.error("presencas_professor indisponivel (rode o SQL 12):", e?.message || e);
     }
@@ -2228,37 +2228,74 @@ app.patch("/api/aluno/feedback", verificarToken, async (req, res) => {
     const email = String(req.usuarioLogado.email || req.usuarioLogado.aluno_id || "").trim().toLowerCase();
     const { nota, revisao, data } = req.body;
     const dia = (data && /^\d{4}-\d{2}-\d{2}$/.test(data)) ? data : getBrasiliaTime().data;
-    const n = parseInt(nota, 10);
-    const { data: reg } = await supabase.from("presencas").select("id")
+
+    // Só atualiza o que veio no pedido: quem manda só a nota não perde o
+    // comentário que já tinha escrito, e vice-versa.
+    const mudancas = {};
+    if (nota !== undefined && nota !== null && nota !== "") {
+      const n = parseInt(nota, 10);
+      if (!(n >= 1 && n <= 5)) return res.status(400).json({ error: "A nota precisa ser de 1 a 5." });
+      mudancas.feedback_nota = n;
+    }
+    if (revisao !== undefined) mudancas.feedback_texto = String(revisao || "").slice(0, 1000);
+    if (Object.keys(mudancas).length === 0) {
+      return res.status(400).json({ error: "Dê uma nota ou escreva um comentário antes de enviar." });
+    }
+
+    const { data: reg, error: erroBusca } = await supabase.from("presencas").select("id")
       .eq("aluno_email", email).eq("data", dia).maybeSingle();
+    if (erroBusca) throw erroBusca;
     if (!reg) return res.status(400).json({ error: "Voce ainda nao marcou presenca neste dia." });
-    const { error } = await supabase.from("presencas")
-      .update({ feedback_nota: (n >= 1 && n <= 5) ? n : null, feedback_texto: revisao ? String(revisao).slice(0, 1000) : "" })
-      .eq("id", reg.id);
+
+    const { error } = await supabase.from("presencas").update(mudancas).eq("id", reg.id);
     if (error) throw error;
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: "Erro ao salvar o feedback." }); }
+    res.json({ ok: true, data: dia });
+  } catch (err) {
+    console.error("ERRO aluno/feedback:", err);
+    res.status(500).json({ error: "Erro ao salvar o feedback." });
+  }
 });
 
 // AVALIACAO do professor (depois da aula) — atualiza o ponto do dia
 app.patch("/api/professor/avaliacao", verificarToken, async (req, res) => {
   try {
+    if (req.usuarioLogado.role !== "professor") return res.status(403).json({ error: "Acesso restrito." });
     const email = String(req.usuarioLogado.email || "").trim().toLowerCase();
-    const { turma, engajamento, nivelamento, observacao, data } = req.body;
+    const { engajamento, nivelamento, observacao, data } = req.body;
+    const selp = turmaDoProfessor(req);
+    if (!selp.ok) return res.status(403).json({ error: "Turma nao pertence a voce." });
+    const turma = selp.turma;
     const dia = (data && /^\d{4}-\d{2}-\d{2}$/.test(data)) ? data : getBrasiliaTime().data;
-    const eng = parseInt(engajamento, 10);
+
+    // Igual ao feedback do aluno: grava só o que foi preenchido agora.
+    const mudancas = {};
+    if (engajamento !== undefined && engajamento !== null && engajamento !== "" && engajamento !== 0) {
+      const eng = parseInt(engajamento, 10);
+      if (!(eng >= 1 && eng <= 5)) return res.status(400).json({ error: "O engajamento precisa ser de 1 a 5." });
+      mudancas.engajamento = eng;
+    }
+    if (nivelamento) mudancas.nivelamento = String(nivelamento);
+    if (observacao !== undefined) mudancas.observacao = String(observacao || "").slice(0, 1000);
+    if (Object.keys(mudancas).length === 0) {
+      return res.status(400).json({ error: "Preencha o engajamento, o nivelamento ou a observação." });
+    }
+
+    // O professor pode ter mais de um registro no dia (turmas diferentes);
+    // sem `maybeSingle` para não dar erro nesse caso.
     let q = supabase.from("presencas_professor").select("id").eq("professor_email", email).eq("data", dia);
     if (turma) q = q.eq("turma", turma);
-    const { data: reg } = await q.maybeSingle();
+    const { data: regs, error: erroBusca } = await q.limit(1);
+    if (erroBusca) throw erroBusca;
+    const reg = (regs || [])[0];
     if (!reg) return res.status(400).json({ error: "Voce ainda nao marcou presenca neste dia." });
-    const { error } = await supabase.from("presencas_professor").update({
-      engajamento: (eng >= 1 && eng <= 5) ? eng : null,
-      nivelamento: nivelamento ? String(nivelamento) : null,
-      observacao: observacao ? String(observacao).slice(0, 1000) : null,
-    }).eq("id", reg.id);
+
+    const { error } = await supabase.from("presencas_professor").update(mudancas).eq("id", reg.id);
     if (error) throw error;
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: "Erro ao salvar a avaliacao." }); }
+    res.json({ ok: true, data: dia });
+  } catch (err) {
+    console.error("ERRO professor/avaliacao:", err);
+    res.status(500).json({ error: "Erro ao salvar a avaliacao." });
+  }
 });
 
 app.get("/api/health", (_, res) =>
