@@ -49,9 +49,13 @@ export default function App() {
     return salvo ? JSON.parse(salvo) : null;
   });
 
+  // Feedback da aula: pode ser respondido depois, enquanto a aula estiver
+  // dentro da janela abaixo (o servidor aceita a data junto com a nota).
+  const DIAS_PARA_FEEDBACK = 7;
   const [fbDia, setFbDia] = useState({ nota: 0, revisao: "" });
-const [enviandoFb, setEnviandoFb] = useState(false);
-const [fbEnviado, setFbEnviado] = useState(false);
+  const [fbData, setFbData] = useState("");
+  const [enviandoFb, setEnviandoFb] = useState(false);
+  const [fbEnviado, setFbEnviado] = useState(false);
 
   const [view, setView] = useState("home");
   const [form, setForm] = useState(dadosSalvos || { email: "", dataNasc: "" });
@@ -136,11 +140,26 @@ const [fbEnviado, setFbEnviado] = useState(false);
     setTimeout(() => setPopup({ show: false, msg: "", tipo: "" }), 5000);
   };
 
+  // Aula mais recente com presença marcada (hoje ou nos últimos dias): e dela
+  // que o feedback fala, para quem só abre o app depois da aula.
+  const aulaParaFeedback = (() => {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - DIAS_PARA_FEEDBACK);
+    const limiteISO = limite.toISOString().slice(0, 10);
+    return (historico || [])
+      .filter((h) => h.check_in && h.data?.substring(0, 10) >= limiteISO)
+      .sort((a, b) => String(b.data).localeCompare(String(a.data)))[0] || null;
+  })();
+
   useEffect(() => {
-  const hojeISO = hojeBrasilia();
-  const reg = (historico || []).find((h) => h.data?.substring(0, 10) === hojeISO);
-  if (reg) setFbDia({ nota: reg.feedback_nota || 0, revisao: reg.feedback_texto || "" });
-}, [historico]);
+    if (!aulaParaFeedback) { setFbData(""); return; }
+    setFbData(aulaParaFeedback.data.substring(0, 10));
+    setFbDia({
+      nota: aulaParaFeedback.feedback_nota || 0,
+      revisao: aulaParaFeedback.feedback_texto || "",
+    });
+    setFbEnviado(Boolean(aulaParaFeedback.feedback_nota || aulaParaFeedback.feedback_texto));
+  }, [aulaParaFeedback?.data, aulaParaFeedback?.feedback_nota, aulaParaFeedback?.feedback_texto]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -322,15 +341,29 @@ const [fbEnviado, setFbEnviado] = useState(false);
       );
     });
 
-    const enviarFeedbackDia = async () => {
-  setEnviandoFb(true);
-  try {
-    const res = await fetchComToken("/aluno/feedback", "PATCH", { nota: fbDia.nota, revisao: fbDia.revisao });
-    if (res.ok) { setFbEnviado(true); setTimeout(() => setFbEnviado(false), 2500); }
-    else { const e = await res.json(); exibirPopup(e.error || "Erro ao enviar feedback.", "erro"); }
-  } catch { exibirPopup("Falha de conexão.", "erro"); }
-  setEnviandoFb(false);
-};
+  const enviarFeedbackDia = async () => {
+    if (!fbDia.nota && !fbDia.revisao.trim()) {
+      return exibirPopup("Dê uma nota ou escreva um comentário antes de enviar.", "erro");
+    }
+    setEnviandoFb(true);
+    try {
+      const res = await fetchComToken("/aluno/feedback", "PATCH", {
+        nota: fbDia.nota || undefined,
+        revisao: fbDia.revisao,
+        data: fbData || undefined,
+      });
+      if (res.ok) {
+        setFbEnviado(true);
+        exibirPopup("Obrigado! Seu feedback foi registrado.", "sucesso");
+        await carregarHistorico();
+      } else {
+        const e = await res.json();
+        exibirPopup(e.error || "Erro ao enviar feedback.", "erro");
+      }
+    } catch { exibirPopup("Falha de conexão.", "erro"); }
+    setEnviandoFb(false);
+  };
+
   const baterPonto = async () => {
     if (!user || !user.email || !user.token) {
       return exibirPopup("Sessão expirada. Faça login novamente.", "erro");
@@ -679,27 +712,6 @@ const [fbEnviado, setFbEnviado] = useState(false);
                           </strong>
                         </div>
 
-                        {jaFezIn && (
-  <div style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.25)", borderRadius: 12, padding: 18, marginBottom: 20, width: "100%", boxSizing: "border-box" }}>
-    <h5 style={{ margin: "0 0 4px", color: "#f4f8ff", fontSize: "0.95rem" }}>Como foi a aula de hoje? <span style={{ color: "var(--text-dim)", fontWeight: 400, fontSize: "0.8rem" }}>(opcional — responda quando a aula terminar)</span></h5>
-    <div style={{ display: "flex", gap: 8, margin: "10px 0" }}>
-      {[1,2,3,4,5].map((n) => (
-        <button key={n} type="button" onClick={() => setFbDia({ ...fbDia, nota: n })}
-          style={{ width: 42, height: 42, borderRadius: 10, cursor: "pointer", fontSize: 18, fontWeight: 700,
-            border: "1px solid " + (fbDia.nota >= n ? "#F5A623" : "rgba(255,255,255,.2)"),
-            background: fbDia.nota >= n ? "rgba(245,166,35,.2)" : "transparent",
-            color: fbDia.nota >= n ? "#F5A623" : "var(--text-dim)" }}>★</button>
-      ))}
-    </div>
-    <textarea value={fbDia.revisao} onChange={(e) => setFbDia({ ...fbDia, revisao: e.target.value })}
-      placeholder="Comentário sobre a aula (opcional)..." rows={2}
-      style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 9, border: "1px solid rgba(255,255,255,.15)", background: "#0f2647", color: "#fff", fontFamily: "inherit", fontSize: 13, marginBottom: 10 }} />
-    <button type="button" disabled={enviandoFb} onClick={enviarFeedbackDia}
-      style={{ padding: "9px 18px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 13, background: fbEnviado ? "#0E7C57" : "#2563EB", color: "#fff" }}>
-      {enviandoFb ? "Enviando..." : fbEnviado ? "✔ Feedback enviado" : "Enviar feedback"}
-    </button>
-  </div>
-)}
                         <div
                           style={{
                             width: "1px",
@@ -738,6 +750,44 @@ const [fbEnviado, setFbEnviado] = useState(false);
                         Tech 4.0
                       </p>
                     </div>
+
+                    {/* Feedback da aula: aparece depois que o aluno marcou
+                        presença e continua disponível nos dias seguintes,
+                        para quem só responde quando a aula termina. */}
+                    {aulaParaFeedback && (
+                      <div style={{ background: "rgba(37,99,235,0.06)", border: "1px solid rgba(37,99,235,0.25)", borderRadius: 12, padding: 18, marginTop: 20, width: "100%", boxSizing: "border-box", textAlign: "left" }}>
+                        <h5 style={{ margin: "0 0 4px", color: "#f4f8ff", fontSize: "0.95rem" }}>
+                          Como foi a aula de {formatarDataBR(fbData)}?{" "}
+                          <span style={{ color: "var(--text-dim)", fontWeight: 400, fontSize: "0.8rem" }}>
+                            (opcional — pode responder depois que a aula terminar)
+                          </span>
+                        </h5>
+                        {fbEnviado && (
+                          <p style={{ margin: "6px 0 0", fontSize: "0.78rem", color: "#5FD3A2" }}>
+                            ✔ Você já respondeu esta aula. Pode alterar e enviar de novo.
+                          </p>
+                        )}
+                        <div style={{ display: "flex", gap: 8, margin: "10px 0" }}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button key={n} type="button" onClick={() => setFbDia({ ...fbDia, nota: n })}
+                              style={{ width: 42, height: 42, borderRadius: 10, cursor: "pointer", fontSize: 18, fontWeight: 700,
+                                border: "1px solid " + (fbDia.nota >= n ? "#F5A623" : "rgba(255,255,255,.2)"),
+                                background: fbDia.nota >= n ? "rgba(245,166,35,.2)" : "transparent",
+                                color: fbDia.nota >= n ? "#F5A623" : "var(--text-dim)" }}>★</button>
+                          ))}
+                        </div>
+                        <textarea value={fbDia.revisao} onChange={(e) => setFbDia({ ...fbDia, revisao: e.target.value })}
+                          placeholder="Comentário sobre a aula (opcional)..." rows={2}
+                          style={{ width: "100%", boxSizing: "border-box", padding: 10, borderRadius: 9, border: "1px solid rgba(255,255,255,.15)", background: "#0f2647", color: "#fff", fontFamily: "inherit", fontSize: 13, marginBottom: 10 }} />
+                        <button type="button" disabled={enviandoFb || (!fbDia.nota && !fbDia.revisao.trim())} onClick={enviarFeedbackDia}
+                          style={{ padding: "9px 18px", borderRadius: 9, border: "none", fontWeight: 700, fontSize: 13, color: "#fff",
+                            cursor: enviandoFb || (!fbDia.nota && !fbDia.revisao.trim()) ? "default" : "pointer",
+                            opacity: !fbDia.nota && !fbDia.revisao.trim() ? 0.6 : 1,
+                            background: fbEnviado ? "#0E7C57" : "#2563EB" }}>
+                          {enviandoFb ? "Enviando..." : fbEnviado ? "Atualizar feedback" : "Enviar feedback"}
+                        </button>
+                      </div>
+                    )}
                   </>
                 );
               })()}
