@@ -2233,8 +2233,8 @@ app.patch("/api/aluno/feedback", verificarToken, async (req, res) => {
     // comentário que já tinha escrito, e vice-versa.
     const mudancas = {};
     if (nota !== undefined && nota !== null && nota !== "") {
-      const n = parseInt(nota, 10);
-      if (!(n >= 1 && n <= 5)) return res.status(400).json({ error: "A nota precisa ser de 1 a 5." });
+      const n = Number(nota);
+      if (!Number.isInteger(n) || n < 1 || n > 5) return res.status(400).json({ error: "A nota precisa ser de 1 a 5." });
       mudancas.feedback_nota = n;
     }
     if (revisao !== undefined) mudancas.feedback_texto = String(revisao || "").slice(0, 1000);
@@ -2270,8 +2270,8 @@ app.patch("/api/professor/avaliacao", verificarToken, async (req, res) => {
     // Igual ao feedback do aluno: grava só o que foi preenchido agora.
     const mudancas = {};
     if (engajamento !== undefined && engajamento !== null && engajamento !== "" && engajamento !== 0) {
-      const eng = parseInt(engajamento, 10);
-      if (!(eng >= 1 && eng <= 5)) return res.status(400).json({ error: "O engajamento precisa ser de 1 a 5." });
+      const eng = Number(engajamento);
+      if (!Number.isInteger(eng) || eng < 1 || eng > 5) return res.status(400).json({ error: "O engajamento precisa ser de 1 a 5." });
       mudancas.engajamento = eng;
     }
     if (nivelamento) mudancas.nivelamento = String(nivelamento);
