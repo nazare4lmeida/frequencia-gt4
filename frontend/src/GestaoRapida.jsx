@@ -541,6 +541,41 @@ export default function GestaoRapida({ user, setView }) {
     } catch { alert("Erro de conexao."); }
   };
 
+  // Abre o anexo da justificativa. A rota exige o token no header
+  // Authorization, então não dá pra usar um <a href> comum (o navegador
+  // navega direto pra URL sem mandar o header). Por isso buscamos com
+  // fetch, montamos um Blob a partir do base64 devolvido pela API e
+  // abrimos esse Blob numa nova aba.
+  const abrirDocumentoJust = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/admin/justificativa/${id}/documento`, {
+        headers: { Authorization: `Bearer ${user.token}` },
+      });
+      const d = await res.json();
+      if (!res.ok || !d.documento) { alert(d.error || "Não foi possível abrir o anexo."); return; }
+
+      const byteChars = atob(d.documento);
+      const byteNumbers = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: d.tipo || "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+
+      const win = window.open(url, "_blank");
+      if (!win) {
+        // Pop-up bloqueado: baixa o arquivo em vez de abrir em nova aba.
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = d.nome || "documento";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      alert("Erro de conexão ao abrir o anexo.");
+    }
+  };
+
   if (carregando && !modalAberto)
     return (
       <div className="app-wrapper gr-page">
@@ -625,15 +660,22 @@ export default function GestaoRapida({ user, setView }) {
                   <p className="gr-item-text">{j.motivo}</p>
 
                   {j.documento_nome && (
-                    <a
+                    <button
+                      type="button"
                       className="gr-link"
-                      href={`${API_URL}/admin/justificativa/${j.id}/documento`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: "inline-block", marginTop: 8 }}
+                      onClick={() => abrirDocumentoJust(j.id)}
+                      style={{
+                        display: "inline-block",
+                        marginTop: 8,
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        font: "inherit",
+                      }}
                     >
                       📎 {j.documento_nome}
-                    </a>
+                    </button>
                   )}
 
                   {j.status === "pendente" && (
